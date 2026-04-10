@@ -1,0 +1,48 @@
+Company : TestPharma Inc.
+Title   : Q4 2025 Earnings Call Transcript
+Source  : https://www.marketscreener.com/quote/stock/TESTPHARMA-12345/news/transcript
+Saved   : 2026-01-28 14:23:15
+================================================================================
+
+Operator: Good afternoon, and welcome to TestPharma's Fourth Quarter 2025 Earnings Conference Call.
+I would now like to turn the call over to John Smith, Chief Executive Officer.
+
+John Smith - CEO: Thank you, Operator. Good afternoon, everyone.
+
+We are pleased to report strong fourth quarter results. Total revenue for Q4 2025 was $8.2 billion,
+representing a 12% year-over-year increase. Full year 2025 revenue reached $31.5 billion.
+
+Our oncology portfolio continues to be the primary growth driver. ONCO-1, our lead product,
+generated $3.1 billion in Q4 revenue, up 18% year-over-year. ONCO-2, launched in Q2 2025,
+contributed $450 million in its first full quarter.
+
+Operating income was $2.8 billion with an operating margin of 34.1%, compared to 32.5% in Q4 2024.
+Diluted EPS was $2.15, compared to $1.87 in the prior year quarter.
+
+Looking ahead, we are raising our full year 2026 revenue guidance to $34-35 billion,
+reflecting continued momentum in our oncology and immunology franchises.
+
+R&D expense was $1.9 billion in Q4, or 23% of revenue, as we advance our Phase 3 pipeline.
+We have 5 compounds in Phase 3 trials, including our next-generation ADC platform.
+
+Jane Doe - CFO: Thank you, John. Let me provide additional financial details.
+
+Cash and equivalents were $12.3 billion at quarter end. We returned $2.1 billion to shareholders
+through dividends and share repurchases in Q4.
+
+Our effective tax rate for the quarter was 15.2%.
+
+Operator: We will now begin the question and answer session.
+
+Analyst: Can you provide more color on the ADC pipeline and expected milestones?
+
+John Smith - CEO: Absolutely. Our ADC-301 is in Phase 3 for breast cancer with data expected
+in H2 2026. We believe this could be a $2+ billion peak sales opportunity. We also have
+ADC-302 entering Phase 2 for lung cancer in Q1 2026.
+
+Analyst: What is the impact of the IRA on your portfolio?
+
+Jane Doe - CFO: We estimate the IRA will have a modest impact of approximately $200 million
+on 2026 revenue, primarily affecting ONCO-1 pricing in the Medicare Part D segment.
+
+Operator: This concludes today's conference call. Thank you for your participation.

@@ -1,0 +1,56 @@
+{
+  "summary": {
+    "total_batches": 2,
+    "total_companies": 4,
+    "by_tier1": {
+      "Biopharma": {"batches": 1, "companies": 2},
+      "MedTech": {"batches": 1, "companies": 2}
+    }
+  },
+  "batches": {
+    "1_oncology": {
+      "tier1": "Biopharma",
+      "sub_sector": "1.1 Oncology",
+      "companies": [
+        {
+          "company": "TestPharma Inc.",
+          "ticker": "TPHR",
+          "exchange": "NASDAQ",
+          "mkt_cap": "$50B",
+          "focus_notes": "Oncology pipeline leader",
+          "is_new": false
+        },
+        {
+          "company": "BioGen Corp.",
+          "ticker": "BGEN",
+          "exchange": "NYSE",
+          "mkt_cap": "$30B",
+          "focus_notes": "ADC platform",
+          "is_new": true
+        }
+      ]
+    },
+    "2_surgical_systems": {
+      "tier1": "MedTech",
+      "sub_sector": "2.2 Surgical Systems",
+      "companies": [
+        {
+          "company": "RoboSurg Ltd.",
+          "ticker": "RSRG",
+          "exchange": "NASDAQ",
+          "mkt_cap": "$80B",
+          "focus_notes": "Surgical robotics",
+          "is_new": false
+        },
+        {
+          "company": "MedDevice & Co.",
+          "ticker": "MDVC",
+          "exchange": "NYSE",
+          "mkt_cap": "$15B",
+          "focus_notes": "Orthopedic implants",
+          "is_new": false
+        }
+      ]
+    }
+  }
+}
