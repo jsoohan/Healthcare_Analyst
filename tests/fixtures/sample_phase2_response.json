@@ -1,0 +1,112 @@
+{
+  "sub_sector": "1.1 Oncology",
+  "tier1": "Biopharma",
+  "reviewed_at": "2026-04-10T12:00:00Z",
+  "llm_used": "gemini-2.5-pro",
+  "sector_dynamics": [
+    {
+      "trend": "ADC 플랫폼 경쟁 가속화",
+      "evidence": "TestPharma ADC-301 Phase 3 진입, 다수 기업 ADC 파이프라인 확대",
+      "structural_or_cyclical": "structural",
+      "investment_implication": "ADC CDMO 수혜 예상, 기존 항체 기반 치료제 대비 차별화 필요"
+    },
+    {
+      "trend": "IRA 약가 협상 영향 본격화",
+      "evidence": "TestPharma ONCO-1 Medicare Part D 가격 영향 ~$200M",
+      "structural_or_cyclical": "structural",
+      "investment_implication": "대형 제약사의 portfolio diversification 가속화 촉매"
+    },
+    {
+      "trend": "Oncology 신규 launch revenue 기여 확대",
+      "evidence": "ONCO-2 첫 full quarter $450M 기여",
+      "structural_or_cyclical": "cyclical",
+      "investment_implication": "신제품 ramp-up 속도가 밸류에이션 re-rating의 핵심"
+    }
+  ],
+  "cross_company_positioning": {
+    "top_performers": [
+      {"ticker": "TPHR", "reason": "Q4 매출 +12% YoY, 가이던스 상향, ADC 파이프라인 모멘텀"}
+    ],
+    "notable_movers": [
+      {"ticker": "BGEN", "direction": "+", "reason": "ADC 플랫폼 기반 성장 잠재력"}
+    ],
+    "positioning_map_summary": "TPHR가 oncology sub-sector 내 확고한 리더 포지션. BGEN은 ADC 플랫폼으로 차별화 시도 중."
+  },
+  "companies": {
+    "TPHR": {
+      "validated_financials_notes": "Q4 2025 매출 $8.2B, EPS $2.15 확인됨. 연간 매출 $31.5B 일관성 있음.",
+      "enriched_highlights": [
+        "Q4 2025 매출 $8.2B (+12% YoY) — oncology portfolio의 구조적 성장 지속 확인",
+        "ONCO-1 분기 매출 $3.1B (+18% YoY) — 시장점유율 확대 중, peak sales 미도달",
+        "ONCO-2 첫 full quarter $450M 기여 — 초기 ramp-up 순항, 연율 $1.8B 잠재력",
+        "FY2026 가이던스 $34-35B 상향 조정 — 경영진 자신감 반영, consensus 상회",
+        "ADC-301 Phase 3 데이터 H2 2026 예정 — $2B+ peak sales 가능성, 파이프라인 핵심 촉매"
+      ],
+      "revenue_drivers": [
+        {
+          "product": "ONCO-1",
+          "yoy_change": "+18%",
+          "cause": "Market share gains in solid tumor, geographic expansion",
+          "structural": true,
+          "outlook": "Peak sales 미도달, 추가 성장 여력 존재하나 IRA 약가 영향 모니터링 필요"
+        },
+        {
+          "product": "ONCO-2",
+          "yoy_change": "N/A (신규)",
+          "cause": "Q2 2025 launch 후 첫 full quarter",
+          "structural": true,
+          "outlook": "Hematology 시장 침투 초기, 경쟁 환경에 따라 $1.5-2.5B peak 가능"
+        }
+      ],
+      "events_enriched": [
+        {
+          "type": "Pipeline",
+          "target": "ADC-301 Phase 3 breast cancer",
+          "strategic_context": "ADC 플랫폼 validation의 핵심 이벤트. 성공 시 oncology 이후 영역으로 확장 가능",
+          "competitive_impact": "경쟁사 ADC 파이프라인 대비 first-in-class 가능성, CDMO 파트너 확보 경쟁 심화"
+        }
+      ],
+      "enriched_sector_kpis": {
+        "pipeline": "5 Phase 3 compounds — 업계 평균 대비 우수",
+        "rd_intensity": "23% of revenue — 공격적 R&D 투자 지속"
+      },
+      "key_risk": "IRA 약가 협상으로 ONCO-1 Medicare 가격 하락, FY2026 ~$200M 영향 예상",
+      "investor_implication": "현재 밸류에이션에 ADC-301 성공 시나리오 미반영. H2 2026 데이터가 re-rating 촉매."
+    },
+    "BGEN": {
+      "validated_financials_notes": "Phase 1 데이터 제한적. transcript 기반 정보만 확인 가능.",
+      "enriched_highlights": [
+        "ADC 플랫폼 기반 차세대 oncology pipeline 구축 — 3개 ADC 후보물질 개발 중",
+        "Q4 2025 매출 $2.1B — base business 안정적 성장 유지",
+        "R&D 투자 확대로 operating margin 일시적 하락 (28.5% → 26.2%)",
+        "중국 파트너십 체결 — BIOSECURE Act 리스크 대비 선제적 대응, 2개 지역 커버",
+        "FY2026 EPS 가이던스 $4.50-4.80 — consensus 범위 내"
+      ],
+      "revenue_drivers": [
+        {
+          "product": "Base oncology portfolio",
+          "yoy_change": "+8%",
+          "cause": "Stable demand, modest pricing",
+          "structural": true,
+          "outlook": "성숙기 진입, 성장률 둔화 예상되나 현금 창출력 견조"
+        }
+      ],
+      "events_enriched": [],
+      "enriched_sector_kpis": {},
+      "key_risk": "ADC 파이프라인 실패 시 성장 스토리 약화, 대형 제약사 대비 규모 열위",
+      "investor_implication": "ADC 플랫폼 밸류에이션 프리미엄은 clinical data 확인 전까지 제한적."
+    }
+  },
+  "exec_summary_input": {
+    "one_liner": "Oncology sub-sector는 Q4 2025 호실적과 ADC 파이프라인 모멘텀으로 구조적 성장 궤도 유지",
+    "key_number": "TPHR Q4 매출 $8.2B (+12% YoY), FY2026 가이던스 $34-35B 상향",
+    "so_what": "IRA 약가 영향은 관리 가능한 수준. ADC-301 H2 2026 데이터가 sub-sector 밸류에이션의 핵심 촉매."
+  },
+  "confidence_flags": [
+    {
+      "field": "BGEN.enriched_highlights",
+      "reason": "IR 자료 부재로 transcript 기반 추정치 포함. 실제 재무제표 검증 필요",
+      "level": "medium"
+    }
+  ]
+}

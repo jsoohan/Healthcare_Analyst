@@ -1,0 +1,95 @@
+{
+  "ticker": "TPHR",
+  "company": "TestPharma Inc.",
+  "tier1": "Biopharma",
+  "sub_sector": "1.1 Oncology",
+  "exchange": "NASDAQ",
+  "mkt_cap": "$50B",
+  "fiscal_quarter_reported": "Q4_2025",
+  "fiscal_quarter_mapped": "FY2025 Q4",
+
+  "financials": {
+    "annual": {
+      "revenue": {"2024": "$28.1B", "2025": "$31.5B", "source": "Q4 2025 earnings call transcript"},
+      "operating_income": {"2024": null, "2025": null, "source": "N/A"},
+      "net_income": {"2024": null, "2025": null, "source": "N/A"},
+      "eps_diluted": {"2024": null, "2025": null, "source": "N/A"},
+      "rd_expense": {"2024": null, "2025": "$1.9B (Q4 annualized)", "source": "Q4 2025 earnings call transcript"}
+    },
+    "quarterly": {
+      "revenue": {"2024-Q4": "$7.3B", "2025-Q4": "$8.2B", "yoy": "+12%", "source": "Q4 2025 earnings call transcript"},
+      "eps": {"2024-Q4": "$1.87", "2025-Q4": "$2.15", "source": "Q4 2025 earnings call transcript"}
+    }
+  },
+
+  "stock": {
+    "price_qe": null,
+    "market_cap_qe": null,
+    "52w_high": null,
+    "52w_low": null,
+    "ev_ebitda": null,
+    "source": "N/A"
+  },
+
+  "key_products": [
+    {
+      "name": "ONCO-1",
+      "category": "Oncology - solid tumor",
+      "revenue_q": "$3.1B",
+      "revenue_yoy": "+18%",
+      "note": "Lead oncology product, continued market share gains",
+      "source": "Q4 2025 earnings call transcript"
+    },
+    {
+      "name": "ONCO-2",
+      "category": "Oncology - hematology",
+      "revenue_q": "$450M",
+      "revenue_yoy": "N/A (launched Q2 2025)",
+      "note": "First full quarter contribution post-launch",
+      "source": "Q4 2025 earnings call transcript"
+    }
+  ],
+
+  "events": [
+    {
+      "type": "Pipeline",
+      "date": "2026-H2",
+      "target_or_event": "ADC-301 Phase 3 data readout",
+      "value": "$2B+ peak sales potential",
+      "note": "Phase 3 breast cancer trial, data expected H2 2026",
+      "source": "Q4 2025 earnings call transcript"
+    }
+  ],
+
+  "guidance": {
+    "fy_guidance_prev": null,
+    "fy_guidance_current": "$34-35B",
+    "raised_lowered_maintained": "raised",
+    "quote": "We are raising our full year 2026 revenue guidance to $34-35 billion",
+    "source": "Q4 2025 earnings call transcript"
+  },
+
+  "management_quotes": [
+    {
+      "topic": "ADC pipeline",
+      "quote": "Our ADC-301 is in Phase 3 for breast cancer with data expected in H2 2026. We believe this could be a $2+ billion peak sales opportunity.",
+      "speaker": "CEO",
+      "source": "Q4 2025 earnings call transcript"
+    }
+  ],
+
+  "sector_specific_raw": {
+    "note": "섹터별 특수 지표 원본값",
+    "pipeline": "5 Phase 3 compounds",
+    "loe_exposure": null,
+    "top_drugs_share": null
+  },
+
+  "sources_used": [
+    "./transcripts_EC_Q4_2025/TestPharma Inc._EC_Q4_2025.txt"
+  ],
+  "sources_missing": [
+    "IR presentation",
+    "SEC filings"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "batch_slug": "1_oncology",
+  "tier1": "Biopharma",
+  "sub_sector": "1.1 Oncology",
+  "quarter": "Q4_2025",
+  "companies": [
+    {
+      "company": "TestPharma Inc.",
+      "ticker": "TPHR",
+      "exchange": "NASDAQ",
+      "mkt_cap": "$50B",
+      "focus_notes": "Oncology pipeline leader",
+      "is_new": false,
+      "sources": {
+        "transcript": "./transcripts_EC_Q4_2025/TestPharma Inc._EC_Q4_2025.txt",
+        "ir": "./ir_presentations/TestPharma Inc._Q4_2025.pdf",
+        "filings": []
+      },
+      "status": "READY"
+    },
+    {
+      "company": "BioGen Corp.",
+      "ticker": "BGEN",
+      "exchange": "NYSE",
+      "mkt_cap": "$30B",
+      "focus_notes": "ADC platform",
+      "is_new": true,
+      "sources": {
+        "transcript": "./transcripts_EC_Q4_2025/BioGen Corp._EC_Q4_2025.txt",
+        "ir": null,
+        "filings": []
+      },
+      "status": "READY"
+    },
+    {
+      "company": "NoData Biotech",
+      "ticker": "NDBT",
+      "exchange": "NASDAQ",
+      "mkt_cap": "$2B",
+      "focus_notes": "",
+      "is_new": false,
+      "sources": {
+        "transcript": null,
+        "ir": null,
+        "filings": []
+      },
+      "status": "SKIP"
+    }
+  ]
+}
