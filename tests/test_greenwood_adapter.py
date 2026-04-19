@@ -9,6 +9,8 @@ from scripts.greenwood_adapter import (
     discover_sources,
     list_all_tickers,
     check_sources_bundle,
+    sanitize_sector_name,
+    make_output_path,
     MIN_TRANSCRIPT_SIZE,
     MIN_IR_SIZE,
     MIN_RELEASE_SIZE,
@@ -118,6 +120,48 @@ class TestListAllTickers:
     def test_empty_period(self, greenwood_tree):
         entries = list_all_tickers(str(greenwood_tree), "2026Q1")
         assert entries == []
+
+
+class TestSanitizeSectorName:
+    def test_basic(self):
+        assert sanitize_sector_name("Biopharma") == "Biopharma"
+
+    def test_strips_number_prefix(self):
+        assert sanitize_sector_name("1. Biopharma") == "Biopharma"
+        assert sanitize_sector_name("9 Dentistry") == "Dentistry"
+
+    def test_ampersand_to_and(self):
+        assert sanitize_sector_name("4. Biologics Tools & Services") == "Biologics_Tools_and_Services"
+
+    def test_empty(self):
+        assert sanitize_sector_name("") == ""
+
+
+class TestMakeOutputPath:
+    def test_transcript_q4(self, tmp_path):
+        p = make_output_path("ABBV", "2025FY", "1. Biopharma",
+                              "Transcript", ".txt", str(tmp_path))
+        expected = tmp_path / "2025_FY" / "Biopharma" / "ABBV" / "ABBV_2025FY_Transcript.txt"
+        assert p == expected
+
+    def test_ir_presentation_pdf(self, tmp_path):
+        p = make_output_path("TXG", "2025FY",
+                              "4. Biologics Tools & Services",
+                              "Presentation", ".pdf", str(tmp_path))
+        expected = (tmp_path / "2025_FY" / "Biologics_Tools_and_Services"
+                    / "TXG" / "TXG_2025FY_Presentation.pdf")
+        assert p == expected
+
+    def test_quarterly_period(self, tmp_path):
+        p = make_output_path("ABBV", "2026Q1", "Biopharma",
+                              "Transcript", ".txt", str(tmp_path))
+        expected = tmp_path / "2026_Q1" / "Biopharma" / "ABBV" / "ABBV_2026Q1_Transcript.txt"
+        assert p == expected
+
+    def test_empty_sector_uses_unmapped(self, tmp_path):
+        p = make_output_path("XYZ", "2025FY", "",
+                              "Transcript", ".txt", str(tmp_path))
+        assert "_unmapped" in str(p)
 
 
 class TestCheckSourcesBundle:

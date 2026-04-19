@@ -163,6 +163,42 @@ def list_all_tickers(base_dir: str, period: str) -> List[Dict]:
     return entries
 
 
+def sanitize_sector_name(name: str) -> str:
+    """Convert DB tier1 value (e.g. '1. Biologics Tools & Services')
+    to safe folder name (e.g. 'Biologics_Tools_and_Services').
+    Shared with greenwood_migrate.py sanitize_dir_name.
+    """
+    if not name:
+        return ""
+    cleaned = re.sub(r"^\s*Sector\s+\d+\s*[:\.\-]?\s*", "", name, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^\s*\d+\s*[\.\-]?\s*", "", cleaned)
+    cleaned = cleaned.replace("&", "and")
+    cleaned = re.sub(r"[^\w\s-]", "", cleaned)
+    cleaned = re.sub(r"\s+", "_", cleaned.strip())
+    return cleaned
+
+
+def make_output_path(ticker: str, period: str, sector: str, file_type: str,
+                      ext: str, output_root: str) -> Path:
+    """Compute the Greenwood-style output path for a collected file.
+
+    Args:
+        ticker: e.g. 'ABBV'
+        period: e.g. '2025FY' or '2026Q1' (no underscore)
+        sector: DB tier1 value, e.g. 'Biopharma' or '1. Biopharma'
+        file_type: 'Transcript', 'EarningsRelease', 'Presentation'
+        ext: '.txt', '.pdf', '.pptx', etc. (leading dot)
+        output_root: base dir, e.g. 'C:/Greenwood/Research/Earnings'
+
+    Returns:
+        Path: {output_root}/{period_dir}/{sector_dir}/{ticker}/{ticker}_{period}_{type}{ext}
+    """
+    sector_dir = sanitize_sector_name(sector) if sector else "_unmapped"
+    ticker_dir = Path(output_root) / period_dir_name(period) / sector_dir / ticker
+    filename = f"{ticker}_{period}_{file_type}{ext}"
+    return ticker_dir / filename
+
+
 def check_sources_bundle(source: Dict) -> str:
     """Classify a discover_sources() result as READY / PARTIAL / SKIP."""
     has_transcript = source.get("transcript") is not None

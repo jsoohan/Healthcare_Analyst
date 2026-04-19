@@ -404,7 +404,8 @@ def extract_transcript_text(driver, url):
     return re.sub(r"\n{3,}", "\n\n", soup.get_text(separator="\n", strip=True))
 
 
-def save_transcript(output_dir, company_name, event_tag, title, url, text):
+def save_transcript_flat(output_dir, company_name, event_tag, title, url, text):
+    """Legacy flat mode: {output_dir}/{sanitize(name)}_{event_tag}.txt with metadata header."""
     filename = f"{sanitize(company_name)}_{event_tag}.txt"
     filepath = os.path.join(output_dir, filename)
     with open(filepath, "w", encoding="utf-8") as f:
@@ -415,6 +416,38 @@ def save_transcript(output_dir, company_name, event_tag, title, url, text):
         f.write("=" * 80 + "\n\n")
         f.write(text)
     return filepath
+
+
+def save_transcript_greenwood(output_root, ticker, period, sector,
+                                company_name, title, url, text):
+    """Greenwood mode: {root}/{period_dir}/{sector}/{ticker}/{ticker}_{period}_Transcript.txt
+    No metadata header (matches user's existing Greenwood file format).
+    Metadata saved separately as .meta.json for provenance.
+    """
+    from scripts.greenwood_adapter import make_output_path
+    filepath = make_output_path(ticker, period, sector, "Transcript", ".txt", output_root)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(text)
+    # Sidecar metadata
+    meta_path = filepath.with_suffix(".meta.json")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "company": company_name, "ticker": ticker, "title": title,
+            "source": url, "saved": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "period": period, "sector": sector,
+        }, f, ensure_ascii=False, indent=2)
+    return str(filepath)
+
+
+def save_transcript(output_dir, company_name, event_tag, title, url, text,
+                     output_mode="flat", output_root=None, ticker=None,
+                     period=None, sector=None):
+    """Dispatch to flat or greenwood saver."""
+    if output_mode == "greenwood":
+        return save_transcript_greenwood(
+            output_root, ticker, period, sector, company_name, title, url, text)
+    return save_transcript_flat(output_dir, company_name, event_tag, title, url, text)
 
 
 def validate_file(filepath):
@@ -430,10 +463,24 @@ def validate_file(filepath):
     return "PASS" if found >= 1 else "WARN_no_kw"
 
 
-def already_collected(output_dir, company_name, event_tag):
+def already_collected_flat(output_dir, company_name, event_tag):
     filename = f"{sanitize(company_name)}_{event_tag}.txt"
     filepath = os.path.join(output_dir, filename)
     return os.path.exists(filepath) and os.path.getsize(filepath) > 1024
+
+
+def already_collected_greenwood(output_root, ticker, period, sector):
+    from scripts.greenwood_adapter import make_output_path
+    filepath = make_output_path(ticker, period, sector, "Transcript", ".txt", output_root)
+    return filepath.exists() and filepath.stat().st_size > 1024
+
+
+def already_collected(output_dir, company_name, event_tag,
+                       output_mode="flat", output_root=None,
+                       ticker=None, period=None, sector=None):
+    if output_mode == "greenwood":
+        return already_collected_greenwood(output_root, ticker, period, sector)
+    return already_collected_flat(output_dir, company_name, event_tag)
 
 
 def load_progress(log_dir):
@@ -540,6 +587,12 @@ def main():
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--start", type=int, default=0)
+    parser.add_argument("--output-mode", default="flat",
+                        choices=["flat", "greenwood"],
+                        help="Output layout: flat (./transcripts_EC_.../) "
+                             "or greenwood ({root}/{period_dir}/{sector}/{ticker}/)")
+    parser.add_argument("--output-root", default=None,
+                        help="Root dir for greenwood mode (e.g. C:/Greenwood/Research/Earnings)")
     args = parser.parse_args()
 
     if args.quarter is None or args.year is None:
@@ -553,8 +606,23 @@ def main():
     year = args.year
     event_tag = f"EC_{quarter}_{year}"
 
+    # Greenwood period tag (2025FY for Q4, 2026Q1/Q2/Q3 otherwise)
+    if quarter == "Q4":
+        greenwood_period = f"{year}FY"
+    else:
+        greenwood_period = f"{year}{quarter}"
+
     print(f"\n  [OK] Target: {quarter} {year} Earnings Call")
-    print(f"  [OK] Filename: {{company}}_{event_tag}.txt")
+    print(f"  [OK] Output mode: {args.output_mode}")
+    if args.output_mode == "greenwood":
+        if not args.output_root:
+            print("  [ABORT] --output-root required for greenwood mode")
+            return
+        print(f"  [OK] Output root: {args.output_root}")
+        print(f"  [OK] Period dir: {greenwood_period}")
+        print(f"  [OK] Filename: {{TICKER}}_{greenwood_period}_Transcript.txt")
+    else:
+        print(f"  [OK] Filename: {{company}}_{event_tag}.txt")
 
     output_dir = f"./transcripts_{event_tag}"
     log_dir = f"./logs_{event_tag}"
@@ -611,7 +679,11 @@ def main():
             num = len(done) + idx + 1
             tag_str = f"[{num}/{len(companies)}]"
 
-            if already_collected(output_dir, name, event_tag):
+            if already_collected(output_dir, name, event_tag,
+                                   output_mode=args.output_mode,
+                                   output_root=args.output_root,
+                                   ticker=ticker, period=greenwood_period,
+                                   sector=company.get("sector", "")):
                 print(f"{tag_str} {name:35s} -> SKIP (already collected)")
                 summary["skip"] += 1
                 continue
@@ -663,8 +735,14 @@ def main():
                         result["note"] = "too_short"
                         break
 
-                    fp = save_transcript(output_dir, name, event_tag,
-                                          link["title"], link["url"], text)
+                    fp = save_transcript(
+                        output_dir, name, event_tag,
+                        link["title"], link["url"], text,
+                        output_mode=args.output_mode,
+                        output_root=args.output_root,
+                        ticker=ticker, period=greenwood_period,
+                        sector=company.get("sector", ""),
+                    )
                     size_kb = round(os.path.getsize(fp) / 1024, 1)
                     validation = validate_file(fp)
 

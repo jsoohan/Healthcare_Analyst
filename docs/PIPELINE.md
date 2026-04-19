@@ -95,6 +95,64 @@ python scripts/build_ir_url_map.py --no-headless --limit 5
 
 ---
 
+### 글로벌 전체 수집 워크플로우 (Greenwood 구조로 출력)
+
+HealthcareIntel DB의 ~1130개 기업 전체를 수집할 때는 섹터별로 나눠서 Greenwood 계층 구조로 직접 출력. 각 수집 스크립트는 `--output-mode greenwood --output-root`를 지원.
+
+**섹터별 예상 시간 (Biopharma=332개 기준)**:
+- IR URL 매핑: 1-2시간
+- Transcript 수집: 4-8시간
+- IR Presentation 수집: 4-8시간
+
+**추천 순서** (섹터 단위로 병렬 가능):
+```powershell
+$ROOT = "C:\Greenwood\Research\Earnings"
+$DB = "$ROOT\HealthcareIntel_Database_20260412.xlsx"
+
+# 1. IR URL 맵 먼저 (섹터 전체, 1회)
+python scripts/build_ir_url_map.py --input $DB --sector Biopharma
+
+# 2. Transcripts (Greenwood 구조로 직접 출력)
+python scripts/collect_transcripts_earnings.py `
+    --input $DB `
+    --quarter Q4 --year 2025 `
+    --sector Biopharma `
+    --output-mode greenwood --output-root $ROOT
+
+# 3. IR Presentations
+python scripts/collect_ir_presentations.py `
+    --input $DB `
+    --quarter Q4 --year 2025 `
+    --sector Biopharma `
+    --output-mode greenwood --output-root $ROOT
+
+# 다른 섹터로 반복
+foreach ($s in "MedTech","Pharma Services","Biologics Tools & Services",
+               "Healthcare IT","Consumer Health","IVD",
+               "Healthcare Services","Dentistry") {
+    python scripts/collect_transcripts_earnings.py --input $DB `
+        --quarter Q4 --year 2025 --sector $s `
+        --output-mode greenwood --output-root $ROOT
+    python scripts/collect_ir_presentations.py --input $DB `
+        --quarter Q4 --year 2025 --sector $s `
+        --output-mode greenwood --output-root $ROOT
+}
+```
+
+**Greenwood 출력 형식**:
+- Transcript: `{root}/{period_dir}/{sector_dir}/{TICKER}/{TICKER}_{period}_Transcript.txt`
+  - 메타데이터는 `.meta.json`으로 별도 저장 (파일 본문은 순수 transcript)
+- IR Presentation: `{root}/{period_dir}/{sector_dir}/{TICKER}/{TICKER}_{period}_Presentation.{pdf|pptx}`
+- Period 규칙: Q4 → `2025FY`, Q1/Q2/Q3 → `2026Q1` 등
+
+**주의사항**:
+- 전체 수집은 48-84시간 이상 소요 (섹터별 나눠 실행 권장)
+- 중국/한국/일본 기업은 MarketScreener 커버리지 낮음 (SKIP 많음 예상)
+- 중간 실패 시 재실행하면 `already_collected` 체크로 skip됨 (incremental 가능)
+- 섹터별 완료 후 `phase1_precheck.py --source-mode greenwood` 재실행하여 커버리지 확인
+
+---
+
 ### 단계 0b: Earnings Call Transcript 수집
 
 **왜 필요한가**: MarketScreener가 가장 일관된 형식의 earnings call transcript를 제공. Phase 1이 이 파일들을 기반으로 회사별 JSON을 생성.

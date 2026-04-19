@@ -499,12 +499,51 @@ def already_collected(collected_set, company_name, quarter, year):
     return key in collected_set
 
 
+def already_collected_greenwood(output_root, ticker, period, sector):
+    """Check if ticker already has a Presentation file in the Greenwood structure."""
+    from scripts.greenwood_adapter import make_output_path
+    for ext in [".pdf", ".pptx", ".ppt", ".xlsx"]:
+        filepath = make_output_path(
+            ticker, period, sector, "Presentation", ext, output_root
+        )
+        if filepath.exists() and filepath.stat().st_size >= MIN_FILE_SIZE:
+            return True
+    return False
+
+
+def resolve_output_for_company(args, company, greenwood_period):
+    """Return (output_dir, final_name) for a company based on output mode.
+
+    Flat mode:      ({args.output}, {sanitize(name)}_{Q}_{YYYY})
+    Greenwood mode: ({root}/{period_dir}/{sector}/{ticker}/, {ticker}_{period}_Presentation)
+    """
+    if args.output_mode == "greenwood":
+        from scripts.greenwood_adapter import (
+            period_dir_name, sanitize_sector_name,
+        )
+        ticker = company["ticker"]
+        sector = company.get("sector", "") or company.get("tier1", "")
+        sector_dir_name = sanitize_sector_name(sector) if sector else "_unmapped"
+        ticker_dir = (Path(args.output_root)
+                      / period_dir_name(greenwood_period)
+                      / sector_dir_name
+                      / ticker)
+        ticker_dir.mkdir(parents=True, exist_ok=True)
+        final_name = f"{ticker}_{greenwood_period}_Presentation"
+        return str(ticker_dir), final_name
+
+    # Flat mode (legacy)
+    final_name = f"{sanitize(company['company_name'])}_{quarter_label(args.quarter, args.year)}"
+    return args.output, final_name
+
+
 # ============================================================
 # Core collection logic
 # ============================================================
 
 
-def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag=""):
+def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
+                 final_name=None):
     """Collect IR presentation for one company.
 
     4-step approach:
@@ -513,13 +552,18 @@ def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag=""):
       Step 2: Google search -> IR pages -> crawl for links
       Step 3: Broader search fallback
 
+    Args:
+        final_name: Override computed name (for greenwood mode).
+                    Defaults to "{sanitize(name)}_{Q}_{YYYY}".
+
     Returns (file_path, file_size, method, source_url) or (None, 0, None, None).
     """
     name = company["company_name"]
     ticker = company["ticker"]
     search_term = company.get("search_term", ticker)
     q_label = quarter_label(quarter, year)
-    final_name = f"{sanitize(name)}_{q_label}"
+    if final_name is None:
+        final_name = f"{sanitize(name)}_{q_label}"
 
     # ----------------------------------------------------------
     # Step 0: Try ir_url_map first (NEW)
@@ -679,7 +723,27 @@ def main():
         "--limit", type=int, default=0,
         help="Max companies to process (0 = all)",
     )
+    parser.add_argument(
+        "--output-mode", default="flat",
+        choices=["flat", "greenwood"],
+        help="flat: ./ir_presentations/{name}_Q4_2025.pdf | "
+             "greenwood: {root}/{period}/{sector}/{ticker}/{ticker}_{period}_Presentation.pdf",
+    )
+    parser.add_argument(
+        "--output-root", default=None,
+        help="Root for greenwood mode (e.g. C:/Greenwood/Research/Earnings)",
+    )
     args = parser.parse_args()
+
+    if args.output_mode == "greenwood" and not args.output_root:
+        print("[ERROR] --output-root required for --output-mode greenwood")
+        return
+
+    # Compute Greenwood period tag (Q4 -> 2025FY, else 2026Q1/Q2/Q3)
+    if args.quarter == "Q4":
+        greenwood_period = f"{args.year}FY"
+    else:
+        greenwood_period = f"{args.year}{args.quarter}"
 
     # ---- Load companies ----
     db_path = find_db_path(args.input)
@@ -734,10 +798,21 @@ def main():
             label = f"[{idx + 1}/{total}]"
 
             # Check if already collected
-            if already_collected(collected_set, name, args.quarter, args.year):
+            if args.output_mode == "greenwood":
+                sector = company.get("sector", "") or company.get("tier1", "")
+                if already_collected_greenwood(args.output_root, ticker,
+                                                greenwood_period, sector):
+                    print(f"{label} {name:35s} -> SKIP (already collected)")
+                    skip_count += 1
+                    continue
+            elif already_collected(collected_set, name, args.quarter, args.year):
                 print(f"{label} {name:35s} -> SKIP (already collected)")
                 skip_count += 1
                 continue
+
+            # Resolve output directory + final name per company
+            per_output_dir, per_final_name = resolve_output_for_company(
+                args, company, greenwood_period)
 
             # Periodic browser restart to avoid memory leaks
             if idx > 0 and idx % RESTART_EVERY == 0:
@@ -763,7 +838,8 @@ def main():
                 try:
                     file_path, file_size, method, source_url = collect_one(
                         driver, company, args.quarter, args.year,
-                        temp_dir, output_dir, tag=label,
+                        temp_dir, per_output_dir, tag=label,
+                        final_name=per_final_name,
                     )
                 except Exception as e:
                     print(f"  {label} ERROR: {str(e)[:80]}")
