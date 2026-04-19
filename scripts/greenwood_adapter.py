@@ -91,7 +91,9 @@ def discover_sources(ticker: str, period: str, base_dir: str) -> Dict:
 
     result["sector_found"] = ticker_dir.parent.name
 
-    prefix = f"{ticker}_{period}_"
+    # Use the actual directory name (preserves case for case-insensitive match)
+    actual_ticker = ticker_dir.name
+    prefix = f"{actual_ticker}_{period}_"
 
     transcript_path = ticker_dir / f"{prefix}Transcript.txt"
     if transcript_path.exists() and transcript_path.stat().st_size >= MIN_TRANSCRIPT_SIZE:

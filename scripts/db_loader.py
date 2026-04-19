@@ -21,6 +21,20 @@ TIER1_SHEETS = [
 US_EXCHANGES = {"NYSE", "NASDAQ", "Nasdaq", "AMEX", "OTC"}
 
 
+def find_header_row(xls, sheet, max_scan=6):
+    """Detect the row index that contains 'Company' and 'Ticker' column headers.
+
+    Real HealthcareIntel DB has 3 intro rows before the header; test fixtures
+    have 1. This handles both by scanning.
+    """
+    preview = pd.read_excel(xls, sheet_name=sheet, header=None, nrows=max_scan)
+    for idx, row in preview.iterrows():
+        values = [str(v).strip() for v in row.values]
+        if "Company" in values and "Ticker" in values:
+            return idx
+    return 1
+
+
 def find_db_path(hint=None):
     """Auto-detect the HealthcareIntel DB xlsx in CWD or given path."""
     if hint and Path(hint).exists():
@@ -54,7 +68,8 @@ def load_companies(xlsx_path=None, sector_filter=None):
         if sector_filter and tier1_name.lower() != sector_filter.lower():
             continue
 
-        df = pd.read_excel(xls, sheet_name=sheet, header=1)
+        header_row = find_header_row(xls, sheet)
+        df = pd.read_excel(xls, sheet_name=sheet, header=header_row)
         df = df.dropna(subset=["Company", "Ticker"], how="all")
 
         for _, row in df.iterrows():

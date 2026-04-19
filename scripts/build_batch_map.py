@@ -9,6 +9,8 @@ import json
 import re
 from pathlib import Path
 
+from scripts.db_loader import find_header_row
+
 DB_PATH = "HealthcareIntel_Database_20260410.xlsx"
 OUTPUT = "data/batch_map.json"
 
@@ -26,7 +28,8 @@ def slugify(s: str) -> str:
 
 
 def load_sheet(xls, sheet: str) -> pd.DataFrame:
-    df = pd.read_excel(xls, sheet_name=sheet, header=1)
+    header_row = find_header_row(xls, sheet)
+    df = pd.read_excel(xls, sheet_name=sheet, header=header_row)
     df = df.dropna(subset=["Company", "Ticker"], how="all")
     return df
 

@@ -33,6 +33,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from scripts.db_loader import find_header_row
+
 
 TIER1_SHEETS = [
     "1. Biopharma", "2. MedTech", "3. Pharma Services",
@@ -52,15 +54,35 @@ def sanitize_dir_name(name: str) -> str:
     return cleaned
 
 
-def load_db_mapping(db_path: str) -> dict:
-    """Load ticker -> {tier1, sub_sector, company} from HealthcareIntel DB."""
-    xl = pd.ExcelFile(db_path)
+def _load_from_master_db(xl) -> dict:
+    """Load ticker mapping from unified 'Master DB' sheet (Tier 1 + Tier 2)."""
+    header_row = find_header_row(xl, "Master DB")
+    df = pd.read_excel(xl, "Master DB", header=header_row)
+    df = df.dropna(subset=["Company", "Ticker"], how="all")
+    mapping = {}
+    for _, row in df.iterrows():
+        ticker = str(row.get("Ticker", "")).strip()
+        if not ticker or ticker == "nan":
+            continue
+        tier1 = str(row.get("Tier 1", "")).strip()
+        tier2 = str(row.get("Tier 2", "")).strip()
+        mapping[ticker.upper()] = {
+            "tier1": tier1 if tier1 and tier1 != "nan" else "",
+            "sub_sector": tier2 if tier2 and tier2 != "nan" else "",
+            "company": str(row.get("Company", "")).strip(),
+        }
+    return mapping
+
+
+def _load_from_tier1_sheets(xl) -> dict:
+    """Fallback: load from per-Tier1 sheets (1. Biopharma, 2. MedTech, ...)."""
     mapping = {}
     for sheet in TIER1_SHEETS:
         if sheet not in xl.sheet_names:
             continue
         tier1 = sheet.split(". ", 1)[1]
-        df = pd.read_excel(xl, sheet, header=1)
+        header_row = find_header_row(xl, sheet)
+        df = pd.read_excel(xl, sheet, header=header_row)
         df = df.dropna(subset=["Company", "Ticker"], how="all")
         for _, row in df.iterrows():
             ticker = str(row.get("Ticker", "")).strip()
@@ -74,6 +96,23 @@ def load_db_mapping(db_path: str) -> dict:
                 "company": company,
             }
     return mapping
+
+
+def load_db_mapping(db_path: str) -> dict:
+    """Load ticker -> {tier1, sub_sector, company} from HealthcareIntel DB.
+
+    Prefers the unified 'Master DB' sheet if present (single source, includes
+    both Tier 1 and Tier 2). Falls back to per-sector sheets.
+    """
+    xl = pd.ExcelFile(db_path)
+    if "Master DB" in xl.sheet_names:
+        try:
+            mapping = _load_from_master_db(xl)
+            if mapping:
+                return mapping
+        except Exception as e:
+            print(f"  [WARN] Master DB load failed ({e}), falling back to per-sector sheets")
+    return _load_from_tier1_sheets(xl)
 
 
 def scan_local(period_dir: Path) -> list:
