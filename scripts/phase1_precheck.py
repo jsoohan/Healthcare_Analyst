@@ -7,8 +7,12 @@ Phase 0 수집 도구(collect_transcripts_earnings.py, collect_ir_presentations.
 import json
 import re
 import os
+import sys
 from pathlib import Path
 from typing import List, Optional
+
+# Allow direct execution: python scripts/phase1_precheck.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # === 경로 설정 (환경에 맞게 조정) ===
 BATCH_MAP = "data/batch_map.json"
@@ -186,16 +190,43 @@ def check_sources(ticker: str, company: str) -> dict:
     }
 
 
-def main(batch_slug: str = None):
+# === Greenwood mode: use hierarchical {period}/{sector}/{TICKER}/ layout ===
+
+def check_sources_greenwood(ticker, company, source_root):
+    """Discover sources in the Greenwood folder layout."""
+    from scripts.greenwood_adapter import discover_sources, quarter_to_period
+
+    period = quarter_to_period(QUARTER)
+    src = discover_sources(ticker, period, source_root, company_name=company)
+
+    return {
+        "transcript": src["transcript"],
+        "ir": src["ir_presentation"],
+        "earnings_release": src["earnings_release"],
+        "filings": src["filings"],
+    }
+
+
+def main(batch_slug=None, source_mode="marketscreener", source_root=None):
+    source_mode = source_mode or "marketscreener"
+
     data = json.load(open(BATCH_MAP, encoding="utf-8"))
     batches = data["batches"]
     targets = [batch_slug] if batch_slug else list(batches.keys())
 
     print(f"[config] QUARTER={QUARTER}")
-    print(f"[config] TRANSCRIPT_DIR={TRANSCRIPT_DIR} (exists={TRANSCRIPT_DIR.exists()})")
-    print(f"[config] IR_DIR={IR_DIR} (exists={IR_DIR.exists()})")
-    print(f"[config] FILING_DIR={FILING_DIR} (exists={FILING_DIR.exists()})")
+    print(f"[config] SOURCE_MODE={source_mode}")
+    if source_mode == "greenwood":
+        print(f"[config] SOURCE_ROOT={source_root}")
+    else:
+        print(f"[config] TRANSCRIPT_DIR={TRANSCRIPT_DIR} (exists={TRANSCRIPT_DIR.exists()})")
+        print(f"[config] IR_DIR={IR_DIR} (exists={IR_DIR.exists()})")
+        print(f"[config] FILING_DIR={FILING_DIR} (exists={FILING_DIR.exists()})")
     print()
+
+    if source_mode == "greenwood" and not source_root:
+        print("[ERROR] --source-root required for greenwood mode")
+        return
 
     grand_total = {"READY": 0, "SKIP": 0}
 
@@ -211,11 +242,17 @@ def main(batch_slug: str = None):
             "tier1": b["tier1"],
             "sub_sector": b["sub_sector"],
             "quarter": QUARTER,
+            "source_mode": source_mode,
             "companies": [],
         }
         for c in b["companies"]:
-            src = check_sources(c["ticker"], c["company"])
-            has_any = src["transcript"] or src["ir"] or src["filings"]
+            if source_mode == "greenwood":
+                src = check_sources_greenwood(c["ticker"], c["company"], source_root)
+                has_any = (src["transcript"] or src["ir"]
+                           or src.get("earnings_release") or src["filings"])
+            else:
+                src = check_sources(c["ticker"], c["company"])
+                has_any = src["transcript"] or src["ir"] or src["filings"]
             status = "READY" if has_any else "SKIP"
             manifest["companies"].append({**c, "sources": src, "status": status})
             grand_total[status] += 1
@@ -229,6 +266,21 @@ def main(batch_slug: str = None):
     print(f"\n=== TOTAL: {grand_total['READY']} READY, {grand_total['SKIP']} SKIP ===")
 
 
+def _cli():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("batch_slug", nargs="?", default=None)
+    parser.add_argument("--source-mode", default="marketscreener",
+                        choices=["marketscreener", "greenwood"],
+                        help="Layout convention for source files")
+    parser.add_argument("--source-root", default=None,
+                        help="Root directory for greenwood mode "
+                             "(e.g. C:/Greenwood/Research/Earnings)")
+    args = parser.parse_args()
+    main(batch_slug=args.batch_slug,
+         source_mode=args.source_mode,
+         source_root=args.source_root)
+
+
 if __name__ == "__main__":
-    import sys
-    main(sys.argv[1] if len(sys.argv) > 1 else None)
+    _cli()

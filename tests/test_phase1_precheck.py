@@ -225,6 +225,46 @@ class TestCheckSources:
 
 
 class TestMain:
+    def test_writes_precheck_json_greenwood_mode(self, tmp_path, monkeypatch):
+        """Test phase1 precheck with greenwood source mode."""
+        import json
+        from scripts import phase1_precheck
+
+        greenwood_root = tmp_path / "Earnings"
+        fy = greenwood_root / "2025_FY" / "Biopharma" / "TPHR"
+        fy.mkdir(parents=True)
+        (fy / "TPHR_2025FY_Transcript.txt").write_text("Operator\n" + "body. " * 300)
+
+        batch_map = {
+            "summary": {"total_batches": 1, "total_companies": 1},
+            "batches": {
+                "1_oncology": {
+                    "tier1": "Biopharma",
+                    "sub_sector": "Oncology",
+                    "companies": [{
+                        "company": "TestPharma Inc.", "ticker": "TPHR",
+                        "exchange": "NYSE", "mkt_cap": "$50B",
+                        "focus_notes": "", "is_new": False,
+                    }],
+                },
+            },
+        }
+        bm_path = tmp_path / "batch_map.json"
+        with open(bm_path, "w") as f:
+            json.dump(batch_map, f)
+
+        phase1_dir = tmp_path / "data" / "phase1"
+        monkeypatch.setattr("scripts.phase1_precheck.BATCH_MAP", str(bm_path))
+        monkeypatch.setattr("scripts.phase1_precheck.PHASE1_DIR", phase1_dir)
+        monkeypatch.setattr("scripts.phase1_precheck.QUARTER", "Q4_2025")
+
+        phase1_precheck.main(source_mode="greenwood", source_root=str(greenwood_root))
+
+        precheck = json.load(open(phase1_dir / "1_oncology" / "_precheck.json"))
+        assert precheck["source_mode"] == "greenwood"
+        assert precheck["companies"][0]["status"] == "READY"
+        assert precheck["companies"][0]["sources"]["transcript"] is not None
+
     def test_writes_precheck_json(self, project_dir, monkeypatch, sample_batch_map):
         phase1_dir = project_dir / "data" / "phase1"
         monkeypatch.setattr("scripts.phase1_precheck.BATCH_MAP",

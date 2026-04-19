@@ -7,7 +7,13 @@ batches grouped by sub-sector slug.
 import pandas as pd
 import json
 import re
+import sys
 from pathlib import Path
+
+# Allow direct execution: python scripts/build_batch_map.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from scripts.db_loader import find_header_row
 
 DB_PATH = "HealthcareIntel_Database_20260410.xlsx"
 OUTPUT = "data/batch_map.json"
@@ -26,13 +32,17 @@ def slugify(s: str) -> str:
 
 
 def load_sheet(xls, sheet: str) -> pd.DataFrame:
-    df = pd.read_excel(xls, sheet_name=sheet, header=1)
+    header_row = find_header_row(xls, sheet)
+    df = pd.read_excel(xls, sheet_name=sheet, header=header_row)
     df = df.dropna(subset=["Company", "Ticker"], how="all")
     return df
 
 
-def main():
-    xls = pd.ExcelFile(DB_PATH)
+def main(db_path=None, output_path=None):
+    from scripts.db_loader import find_db_path
+    db = db_path or find_db_path(DB_PATH) or DB_PATH
+    out = output_path or OUTPUT
+    xls = pd.ExcelFile(db)
     batches = {}
 
     for sheet in TIER1_SHEETS:
@@ -76,13 +86,24 @@ def main():
         summary["by_tier1"][b["tier1"]]["batches"] += 1
         summary["by_tier1"][b["tier1"]]["companies"] += len(b["companies"])
 
-    Path("data").mkdir(exist_ok=True)
-    with open(OUTPUT, "w", encoding="utf-8") as f:
+    Path(Path(out).parent).mkdir(parents=True, exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
         json.dump({"summary": summary, "batches": batches}, f,
                   ensure_ascii=False, indent=2)
-    print(f"Wrote {OUTPUT}")
+    print(f"Wrote {out}")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
+def _cli():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--db", default=None,
+                        help="HealthcareIntel DB xlsx path (auto-detect if not set)")
+    parser.add_argument("--output", default=None,
+                        help="Output JSON path (default: data/batch_map.json)")
+    args = parser.parse_args()
+    main(db_path=args.db, output_path=args.output)
+
+
 if __name__ == "__main__":
-    main()
+    _cli()

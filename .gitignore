@@ -1,3 +1,29 @@
+# Python
 __pycache__/
 *.pyc
 .pytest_cache/
+.venv/
+venv/
+
+# Phase 0 collected data (keep out of repo due to size/copyright)
+transcripts_EC_*/
+ir_presentations/
+filings/
+logs/
+logs_*/
+
+# Phase 1/2 intermediate artifacts (optional — re-generatable from sources)
+data/ir_url_map.json
+data/phase1/
+data/phase2/
+data/logs/
+data/batch_map.json
+
+# Input database (large, not for repo)
+HealthcareIntel_Database_*.xlsx
+company_db.xlsx
+input_companies.csv
+
+# OS
+.DS_Store
+Thumbs.db
