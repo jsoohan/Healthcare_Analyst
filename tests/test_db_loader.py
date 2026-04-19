@@ -48,11 +48,12 @@ class TestLoadCompanies:
         for c in biopharma:
             assert c["sector"] == "Biopharma"
 
-    def test_search_term_us_ticker(self, tmp_path):
+    def test_search_term_uses_company_name(self, tmp_path):
+        """All companies use company name for MarketScreener search."""
         excel_path = create_sample_excel(tmp_path / "test.xlsx")
         companies = load_companies(str(excel_path))
         tphr = [c for c in companies if c["ticker"] == "TPHR"][0]
-        assert tphr["search_term"] == "TPHR"
+        assert tphr["search_term"] == "TestPharma Inc."
 
     def test_search_term_non_us(self, tmp_path):
         import openpyxl

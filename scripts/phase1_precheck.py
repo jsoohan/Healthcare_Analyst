@@ -192,12 +192,12 @@ def check_sources(ticker: str, company: str) -> dict:
 
 # === Greenwood mode: use hierarchical {period}/{sector}/{TICKER}/ layout ===
 
-def check_sources_greenwood(ticker: str, company: str, source_root: str) -> dict:
+def check_sources_greenwood(ticker, company, source_root):
     """Discover sources in the Greenwood folder layout."""
     from scripts.greenwood_adapter import discover_sources, quarter_to_period
 
     period = quarter_to_period(QUARTER)
-    src = discover_sources(ticker, period, source_root)
+    src = discover_sources(ticker, period, source_root, company_name=company)
 
     return {
         "transcript": src["transcript"],

@@ -83,10 +83,10 @@ def load_companies(xlsx_path=None, sector_filter=None):
             if not sub or sub == "nan":
                 sub = f"{tier1_name}_unclassified"
 
-            if exchange in US_EXCHANGES and ticker.isalpha():
-                search_term = ticker
-            else:
-                search_term = company
+            # Always search by company name — more reliable across
+            # MarketScreener regional indexes (Korean/Chinese tickers are
+            # often numeric and don't match well via ticker search).
+            search_term = company
 
             companies.append({
                 "company_name": company,

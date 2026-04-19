@@ -52,13 +52,18 @@ def period_dir_name(period: str) -> str:
     return period
 
 
-def discover_sources(ticker: str, period: str, base_dir: str) -> Dict:
-    """Find all source files for a ticker in the Greenwood structure.
+def discover_sources(ticker: str, period: str, base_dir: str,
+                      company_name: str = None) -> Dict:
+    """Find all source files for a company in the Greenwood structure.
+
+    Tries company_name first (new canonical layout) then ticker (legacy layout).
 
     Args:
-        ticker: Stock ticker (e.g. 'ABBV')
+        ticker: Stock ticker (e.g. 'ABBV') — used as legacy fallback.
         period: Period tag (e.g. '2025FY', '2026Q1')
         base_dir: Root of Greenwood folder (contains 2025_FY/, 2026_Q1/, ...)
+        company_name: Canonical company name (e.g. 'AbbVie'). When provided,
+                       tried first.
 
     Returns:
         {
@@ -67,7 +72,7 @@ def discover_sources(ticker: str, period: str, base_dir: str) -> Dict:
             "earnings_release_html": path | None, # original HTML if present
             "ir_presentation": path | None,
             "filings": list[path],                # currently empty, for future use
-            "sector_found": str | None,           # which sector folder ticker was in
+            "sector_found": str | None,           # which sector folder it was in
         }
     """
     base = Path(base_dir)
@@ -85,28 +90,38 @@ def discover_sources(ticker: str, period: str, base_dir: str) -> Dict:
     if not period_dir.exists():
         return result
 
-    ticker_dir = _find_ticker_dir(period_dir, ticker)
-    if ticker_dir is None:
+    # Build list of candidate folder names in priority order
+    candidates = []
+    if company_name:
+        candidates.append(_sanitize_company(company_name))
+    if ticker:
+        candidates.append(ticker)
+
+    target_dir = None
+    for name in candidates:
+        target_dir = _find_company_dir(period_dir, name)
+        if target_dir is not None:
+            break
+
+    if target_dir is None:
         return result
 
-    result["sector_found"] = ticker_dir.parent.name
+    result["sector_found"] = target_dir.parent.name
+    actual_name = target_dir.name
+    prefix = f"{actual_name}_{period}_"
 
-    # Use the actual directory name (preserves case for case-insensitive match)
-    actual_ticker = ticker_dir.name
-    prefix = f"{actual_ticker}_{period}_"
-
-    transcript_path = ticker_dir / f"{prefix}Transcript.txt"
+    transcript_path = target_dir / f"{prefix}Transcript.txt"
     if transcript_path.exists() and transcript_path.stat().st_size >= MIN_TRANSCRIPT_SIZE:
         result["transcript"] = str(transcript_path)
 
-    release_txt = ticker_dir / f"{prefix}EarningsRelease.txt"
-    release_htm = ticker_dir / f"{prefix}EarningsRelease.htm"
+    release_txt = target_dir / f"{prefix}EarningsRelease.txt"
+    release_htm = target_dir / f"{prefix}EarningsRelease.htm"
     if release_txt.exists() and release_txt.stat().st_size >= MIN_RELEASE_SIZE:
         result["earnings_release"] = str(release_txt)
     if release_htm.exists():
         result["earnings_release_html"] = str(release_htm)
 
-    for p in sorted(ticker_dir.iterdir()):
+    for p in sorted(target_dir.iterdir()):
         if not p.is_file():
             continue
         name = p.name
@@ -122,25 +137,29 @@ def discover_sources(ticker: str, period: str, base_dir: str) -> Dict:
     return result
 
 
-def _find_ticker_dir(period_dir: Path, ticker: str) -> Optional[Path]:
-    """Search all sector subdirs for a matching ticker folder (case-sensitive)."""
+def _find_company_dir(period_dir: Path, folder_name: str) -> Optional[Path]:
+    """Search all sector subdirs for a matching folder (case-sensitive first)."""
     if not period_dir.exists():
         return None
     for sector_dir in period_dir.iterdir():
         if not sector_dir.is_dir():
             continue
-        candidate = sector_dir / ticker
+        candidate = sector_dir / folder_name
         if candidate.exists() and candidate.is_dir():
             return candidate
     # Case-insensitive fallback
-    upper_ticker = ticker.upper()
+    target = folder_name.upper()
     for sector_dir in period_dir.iterdir():
         if not sector_dir.is_dir():
             continue
         for child in sector_dir.iterdir():
-            if child.is_dir() and child.name.upper() == upper_ticker:
+            if child.is_dir() and child.name.upper() == target:
                 return child
     return None
+
+
+# Backward-compat alias (tests/callers may still use old name)
+_find_ticker_dir = _find_company_dir
 
 
 def list_all_tickers(base_dir: str, period: str) -> List[Dict]:
@@ -178,25 +197,38 @@ def sanitize_sector_name(name: str) -> str:
     return cleaned
 
 
-def make_output_path(ticker: str, period: str, sector: str, file_type: str,
-                      ext: str, output_root: str) -> Path:
+def _sanitize_company(name: str) -> str:
+    """Company name -> safe folder/file name. Keeps spaces, ampersand, digits.
+    Only replaces path-hostile chars (identical to Phase 0 collector sanitize)."""
+    import re as _re
+    return _re.sub(r'[\\/:*?"<>|]', '_', name).strip()
+
+
+def make_output_path(company_name: str, period: str, sector: str,
+                      file_type: str, ext: str, output_root: str,
+                      ticker: str = None) -> Path:
     """Compute the Greenwood-style output path for a collected file.
 
+    Files are named by company name (not ticker) to match the user's
+    original Phase 0 naming convention.
+
     Args:
-        ticker: e.g. 'ABBV'
+        company_name: e.g. 'AbbVie' or '10x Genomics'
         period: e.g. '2025FY' or '2026Q1' (no underscore)
         sector: DB tier1 value, e.g. 'Biopharma' or '1. Biopharma'
         file_type: 'Transcript', 'EarningsRelease', 'Presentation'
         ext: '.txt', '.pdf', '.pptx', etc. (leading dot)
         output_root: base dir, e.g. 'C:/Greenwood/Research/Earnings'
+        ticker: reserved for legacy callers; ignored.
 
     Returns:
-        Path: {output_root}/{period_dir}/{sector_dir}/{ticker}/{ticker}_{period}_{type}{ext}
+        Path: {output_root}/{period_dir}/{sector_dir}/{Company}/{Company}_{period}_{type}{ext}
     """
     sector_dir = sanitize_sector_name(sector) if sector else "_unmapped"
-    ticker_dir = Path(output_root) / period_dir_name(period) / sector_dir / ticker
-    filename = f"{ticker}_{period}_{file_type}{ext}"
-    return ticker_dir / filename
+    company_dir = _sanitize_company(company_name)
+    folder = Path(output_root) / period_dir_name(period) / sector_dir / company_dir
+    filename = f"{company_dir}_{period}_{file_type}{ext}"
+    return folder / filename
 
 
 def check_sources_bundle(source: Dict) -> str:

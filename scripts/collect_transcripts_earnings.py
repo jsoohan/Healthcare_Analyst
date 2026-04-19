@@ -398,12 +398,13 @@ def save_transcript_flat(output_dir, company_name, event_tag, title, url, text):
 
 def save_transcript_greenwood(output_root, ticker, period, sector,
                                 company_name, title, url, text):
-    """Greenwood mode: {root}/{period_dir}/{sector}/{ticker}/{ticker}_{period}_Transcript.txt
-    No metadata header (matches user's existing Greenwood file format).
-    Metadata saved separately as .meta.json for provenance.
+    """Greenwood mode: {root}/{period_dir}/{sector}/{Company}/{Company}_{period}_Transcript.txt
+    Files named by company name (matches user's Phase 0 naming convention).
+    Ticker preserved in sidecar .meta.json for traceability.
     """
     from scripts.greenwood_adapter import make_output_path
-    filepath = make_output_path(ticker, period, sector, "Transcript", ".txt", output_root)
+    filepath = make_output_path(company_name, period, sector, "Transcript",
+                                  ".txt", output_root, ticker=ticker)
     filepath.parent.mkdir(parents=True, exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(text)
@@ -447,17 +448,28 @@ def already_collected_flat(output_dir, company_name, event_tag):
     return os.path.exists(filepath) and os.path.getsize(filepath) > 1024
 
 
-def already_collected_greenwood(output_root, ticker, period, sector):
+def already_collected_greenwood(output_root, company_name, period, sector,
+                                  ticker=None):
+    """Check by company-name path first, ticker path as legacy fallback."""
     from scripts.greenwood_adapter import make_output_path
-    filepath = make_output_path(ticker, period, sector, "Transcript", ".txt", output_root)
-    return filepath.exists() and filepath.stat().st_size > 1024
+    filepath = make_output_path(company_name, period, sector, "Transcript",
+                                  ".txt", output_root)
+    if filepath.exists() and filepath.stat().st_size > 1024:
+        return True
+    if ticker:
+        legacy = make_output_path(ticker, period, sector, "Transcript",
+                                    ".txt", output_root)
+        if legacy.exists() and legacy.stat().st_size > 1024:
+            return True
+    return False
 
 
 def already_collected(output_dir, company_name, event_tag,
                        output_mode="flat", output_root=None,
                        ticker=None, period=None, sector=None):
     if output_mode == "greenwood":
-        return already_collected_greenwood(output_root, ticker, period, sector)
+        return already_collected_greenwood(
+            output_root, company_name, period, sector, ticker=ticker)
     return already_collected_flat(output_dir, company_name, event_tag)
 
 

@@ -132,8 +132,8 @@ def main():
                               "reason": f"flat_file_missing: {flat_path.name}"})
             continue
 
-        target = make_output_path(ticker, period, sector, "Transcript", ".txt",
-                                    args.root)
+        target = make_output_path(company_name, period, sector, "Transcript",
+                                    ".txt", args.root, ticker=ticker)
         meta_target = target.with_suffix(".meta.json")
 
         if target.exists() and target.stat().st_size > 1024:

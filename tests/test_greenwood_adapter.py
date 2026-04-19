@@ -107,6 +107,35 @@ class TestDiscoverSources:
         result = discover_sources("abbv", "2025FY", str(greenwood_tree))
         assert result["transcript"] is not None
 
+    def test_company_name_preferred_over_ticker(self, tmp_path):
+        """New canonical layout uses company name; ticker folder is legacy fallback."""
+        base = tmp_path / "Earnings"
+        fy = base / "2025_FY" / "Biopharma"
+
+        # Company-name folder (new)
+        company_dir = fy / "AbbVie"
+        company_dir.mkdir(parents=True)
+        (company_dir / "AbbVie_2025FY_Transcript.txt").write_text(
+            "Operator\n" + ("Transcript body. " * 200), encoding="utf-8")
+
+        # Ticker folder (legacy) — also present but should NOT be picked first
+        ticker_dir = fy / "ABBV"
+        ticker_dir.mkdir()
+        (ticker_dir / "ABBV_2025FY_Transcript.txt").write_text(
+            "LEGACY should not be chosen " * 200, encoding="utf-8")
+
+        result = discover_sources(
+            "ABBV", "2025FY", str(base), company_name="AbbVie")
+        assert "AbbVie" in result["transcript"]
+        assert "ABBV_2025FY" not in result["transcript"]
+
+    def test_ticker_fallback_when_no_company_name(self, greenwood_tree):
+        """If only ticker folder exists, discover_sources still works."""
+        result = discover_sources(
+            "ABBV", "2025FY", str(greenwood_tree), company_name="AbbVie")
+        # No AbbVie folder exists in fixture, should fall back to ABBV
+        assert result["transcript"] is not None
+
 
 class TestListAllTickers:
     def test_lists_all(self, greenwood_tree):
@@ -138,30 +167,39 @@ class TestSanitizeSectorName:
 
 
 class TestMakeOutputPath:
-    def test_transcript_q4(self, tmp_path):
-        p = make_output_path("ABBV", "2025FY", "1. Biopharma",
+    def test_transcript_q4_by_company_name(self, tmp_path):
+        p = make_output_path("AbbVie", "2025FY", "1. Biopharma",
                               "Transcript", ".txt", str(tmp_path))
-        expected = tmp_path / "2025_FY" / "Biopharma" / "ABBV" / "ABBV_2025FY_Transcript.txt"
+        expected = (tmp_path / "2025_FY" / "Biopharma" / "AbbVie"
+                    / "AbbVie_2025FY_Transcript.txt")
         assert p == expected
 
     def test_ir_presentation_pdf(self, tmp_path):
-        p = make_output_path("TXG", "2025FY",
+        p = make_output_path("10x Genomics", "2025FY",
                               "4. Biologics Tools & Services",
                               "Presentation", ".pdf", str(tmp_path))
         expected = (tmp_path / "2025_FY" / "Biologics_Tools_and_Services"
-                    / "TXG" / "TXG_2025FY_Presentation.pdf")
+                    / "10x Genomics"
+                    / "10x Genomics_2025FY_Presentation.pdf")
         assert p == expected
 
     def test_quarterly_period(self, tmp_path):
-        p = make_output_path("ABBV", "2026Q1", "Biopharma",
+        p = make_output_path("AbbVie", "2026Q1", "Biopharma",
                               "Transcript", ".txt", str(tmp_path))
-        expected = tmp_path / "2026_Q1" / "Biopharma" / "ABBV" / "ABBV_2026Q1_Transcript.txt"
+        expected = (tmp_path / "2026_Q1" / "Biopharma" / "AbbVie"
+                    / "AbbVie_2026Q1_Transcript.txt")
         assert p == expected
 
     def test_empty_sector_uses_unmapped(self, tmp_path):
-        p = make_output_path("XYZ", "2025FY", "",
+        p = make_output_path("UnknownCo", "2025FY", "",
                               "Transcript", ".txt", str(tmp_path))
         assert "_unmapped" in str(p)
+
+    def test_company_with_special_chars(self, tmp_path):
+        """Johnson & Johnson should keep ampersand (only path-hostile chars stripped)."""
+        p = make_output_path("Johnson & Johnson", "2025FY", "Biopharma",
+                              "Transcript", ".txt", str(tmp_path))
+        assert "Johnson & Johnson" in str(p)
 
 
 class TestCheckSourcesBundle:

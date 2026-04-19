@@ -476,15 +476,20 @@ def already_collected(collected_set, company_name, quarter, year):
     return key in collected_set
 
 
-def already_collected_greenwood(output_root, ticker, period, sector):
-    """Check if ticker already has a Presentation file in the Greenwood structure."""
+def already_collected_greenwood(output_root, company_name, period, sector,
+                                  ticker=None):
+    """Check company-name path first, ticker path as legacy fallback."""
     from scripts.greenwood_adapter import make_output_path
-    for ext in [".pdf", ".pptx", ".ppt", ".xlsx"]:
-        filepath = make_output_path(
-            ticker, period, sector, "Presentation", ext, output_root
-        )
-        if filepath.exists() and filepath.stat().st_size >= MIN_FILE_SIZE:
-            return True
+    candidates = [company_name]
+    if ticker:
+        candidates.append(ticker)
+    for name in candidates:
+        for ext in [".pdf", ".pptx", ".ppt", ".xlsx"]:
+            filepath = make_output_path(
+                name, period, sector, "Presentation", ext, output_root
+            )
+            if filepath.exists() and filepath.stat().st_size >= MIN_FILE_SIZE:
+                return True
     return False
 
 
@@ -492,22 +497,22 @@ def resolve_output_for_company(args, company, greenwood_period):
     """Return (output_dir, final_name) for a company based on output mode.
 
     Flat mode:      ({args.output}, {sanitize(name)}_{Q}_{YYYY})
-    Greenwood mode: ({root}/{period_dir}/{sector}/{ticker}/, {ticker}_{period}_Presentation)
+    Greenwood mode: ({root}/{period_dir}/{sector}/{Company}/, {Company}_{period}_Presentation)
     """
     if args.output_mode == "greenwood":
         from scripts.greenwood_adapter import (
-            period_dir_name, sanitize_sector_name,
+            period_dir_name, sanitize_sector_name, _sanitize_company,
         )
-        ticker = company["ticker"]
         sector = company.get("sector", "") or company.get("tier1", "")
         sector_dir_name = sanitize_sector_name(sector) if sector else "_unmapped"
-        ticker_dir = (Path(args.output_root)
-                      / period_dir_name(greenwood_period)
-                      / sector_dir_name
-                      / ticker)
-        ticker_dir.mkdir(parents=True, exist_ok=True)
-        final_name = f"{ticker}_{greenwood_period}_Presentation"
-        return str(ticker_dir), final_name
+        company_dir_name = _sanitize_company(company["company_name"])
+        company_dir = (Path(args.output_root)
+                       / period_dir_name(greenwood_period)
+                       / sector_dir_name
+                       / company_dir_name)
+        company_dir.mkdir(parents=True, exist_ok=True)
+        final_name = f"{company_dir_name}_{greenwood_period}_Presentation"
+        return str(company_dir), final_name
 
     # Flat mode (legacy)
     final_name = f"{sanitize(company['company_name'])}_{quarter_label(args.quarter, args.year)}"
@@ -777,8 +782,9 @@ def main():
             # Check if already collected
             if args.output_mode == "greenwood":
                 sector = company.get("sector", "") or company.get("tier1", "")
-                if already_collected_greenwood(args.output_root, ticker,
-                                                greenwood_period, sector):
+                if already_collected_greenwood(args.output_root, name,
+                                                greenwood_period, sector,
+                                                ticker=ticker):
                     print(f"{label} {name:35s} -> SKIP (already collected)")
                     skip_count += 1
                     continue
