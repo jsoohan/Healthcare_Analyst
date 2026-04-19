@@ -14,10 +14,14 @@ import argparse
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse, quote as url_quote
+
+# Allow direct execution: python scripts/build_ir_url_map.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service

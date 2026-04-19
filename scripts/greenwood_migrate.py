@@ -33,6 +33,9 @@ from pathlib import Path
 
 import pandas as pd
 
+# Allow direct execution: python scripts/greenwood_migrate.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from scripts.db_loader import find_header_row
 
 

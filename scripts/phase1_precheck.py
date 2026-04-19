@@ -7,8 +7,12 @@ Phase 0 수집 도구(collect_transcripts_earnings.py, collect_ir_presentations.
 import json
 import re
 import os
+import sys
 from pathlib import Path
 from typing import List, Optional
+
+# Allow direct execution: python scripts/phase1_precheck.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # === 경로 설정 (환경에 맞게 조정) ===
 BATCH_MAP = "data/batch_map.json"

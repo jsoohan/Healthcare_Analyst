@@ -23,10 +23,14 @@ import json
 import os
 import re
 import shutil
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote as url_quote
+
+# Allow direct execution: python scripts/collect_ir_presentations.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
