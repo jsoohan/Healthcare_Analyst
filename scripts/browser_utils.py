@@ -192,12 +192,8 @@ def create_driver(headless=False, download_dir=None, stealth=None,
                    chrome_profile=None, profile_dir=None):
     """Create a Chrome driver with optional anti-detection.
 
-    Args:
-        headless: Run without visible window (default False — captchas easier to solve with window)
-        download_dir: Directory to download files to
-        stealth: Use undetected-chromedriver. Defaults to STEALTH_BROWSER env var.
-        chrome_profile: Path to Chrome user data dir. Defaults to CHROME_PROFILE env.
-        profile_dir: Profile subdirectory name (usually "Default"). Defaults to CHROME_PROFILE_DIR env or "Default".
+    If stealth mode fails (UC crash, version mismatch, port conflict),
+    automatically falls back to regular Selenium so collection continues.
     """
     if stealth is None:
         stealth = os.getenv("STEALTH_BROWSER", "").lower() in ("1", "true", "yes")
@@ -207,5 +203,35 @@ def create_driver(headless=False, download_dir=None, stealth=None,
         profile_dir = os.getenv("CHROME_PROFILE_DIR", "Default")
 
     if stealth:
-        return _create_stealth_driver(headless, download_dir, chrome_profile, profile_dir)
-    return _create_regular_driver(headless, download_dir, chrome_profile, profile_dir)
+        try:
+            return _create_stealth_driver(headless, download_dir,
+                                            chrome_profile, profile_dir)
+        except Exception as e:
+            print(f"  [WARN] Stealth driver failed, falling back to regular Selenium")
+            print(f"         ({str(e)[:100]})")
+            # Kill any orphaned chrome processes before fallback
+            _kill_chrome_processes()
+            import time
+            time.sleep(3)
+            try:
+                return _create_regular_driver(headless, download_dir,
+                                                chrome_profile, profile_dir)
+            except Exception as e2:
+                print(f"  [WARN] Regular driver with profile also failed, "
+                      f"trying without profile")
+                return _create_regular_driver(headless, download_dir,
+                                                None, "Default")
+
+    return _create_regular_driver(headless, download_dir,
+                                    chrome_profile, profile_dir)
+
+
+def _kill_chrome_processes():
+    """Kill lingering Chrome/chromedriver processes to free ports."""
+    import subprocess, sys as _sys
+    if _sys.platform.startswith("win"):
+        subprocess.run("taskkill /F /IM chromedriver.exe >nul 2>&1", shell=True)
+        subprocess.run("taskkill /F /IM chrome.exe >nul 2>&1", shell=True)
+    else:
+        subprocess.run("pkill -f chromedriver 2>/dev/null", shell=True)
+        subprocess.run("pkill -f 'Google Chrome' 2>/dev/null", shell=True)
