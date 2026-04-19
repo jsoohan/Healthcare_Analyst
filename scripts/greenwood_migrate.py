@@ -47,18 +47,37 @@ TIER1_SHEETS = [
 ]
 
 
+def clean_tier1_name(name: str) -> str:
+    """Strip leading numeric/sector prefix from DB tier1 value.
+
+    Real DB may store values like '1. Biopharma', '1 Biopharma',
+    or 'Sector 1: Biopharma'. We want just 'Biopharma'.
+    """
+    if not name:
+        return ""
+    name = re.sub(r"^\s*Sector\s+\d+\s*[:\.\-]?\s*", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"^\s*\d+\s*[\.\-]?\s*", "", name)
+    return name.strip()
+
+
 def sanitize_dir_name(name: str) -> str:
     """Convert DB sector name to safe folder name.
-    E.g. 'Biologics Tools & Services' -> 'Biologics_Tools_and_Services'
+    E.g. '1. Biologics Tools & Services' -> 'Biologics_Tools_and_Services'
     """
-    cleaned = name.replace("&", "and")
+    cleaned = clean_tier1_name(name)
+    cleaned = cleaned.replace("&", "and")
     cleaned = re.sub(r"[^\w\s-]", "", cleaned)
     cleaned = re.sub(r"\s+", "_", cleaned.strip())
     return cleaned
 
 
 def _load_from_master_db(xl) -> dict:
-    """Load ticker mapping from unified 'Master DB' sheet (Tier 1 + Tier 2)."""
+    """Load ticker mapping from unified 'Master DB' sheet (Tier 1 + Tier 2).
+
+    For tickers appearing in multiple sectors (big-cap diversified companies
+    like ABBV, JNJ, MRK), the FIRST occurrence wins. The DB is typically
+    sorted Tier 1 -> 2 -> ... -> 9, so the primary sector comes first.
+    """
     header_row = find_header_row(xl, "Master DB")
     df = pd.read_excel(xl, "Master DB", header=header_row)
     df = df.dropna(subset=["Company", "Ticker"], how="all")
@@ -67,10 +86,13 @@ def _load_from_master_db(xl) -> dict:
         ticker = str(row.get("Ticker", "")).strip()
         if not ticker or ticker == "nan":
             continue
+        ticker_upper = ticker.upper()
+        if ticker_upper in mapping:
+            continue  # First occurrence wins
         tier1 = str(row.get("Tier 1", "")).strip()
         tier2 = str(row.get("Tier 2", "")).strip()
-        mapping[ticker.upper()] = {
-            "tier1": tier1 if tier1 and tier1 != "nan" else "",
+        mapping[ticker_upper] = {
+            "tier1": clean_tier1_name(tier1) if tier1 and tier1 != "nan" else "",
             "sub_sector": tier2 if tier2 and tier2 != "nan" else "",
             "company": str(row.get("Company", "")).strip(),
         }
@@ -78,7 +100,11 @@ def _load_from_master_db(xl) -> dict:
 
 
 def _load_from_tier1_sheets(xl) -> dict:
-    """Fallback: load from per-Tier1 sheets (1. Biopharma, 2. MedTech, ...)."""
+    """Fallback: load from per-Tier1 sheets (1. Biopharma, 2. MedTech, ...).
+
+    First occurrence wins for cross-sector duplicates (Tier1 sheets are
+    iterated in order 1 -> 9, matching Master DB's primary-sector priority).
+    """
     mapping = {}
     for sheet in TIER1_SHEETS:
         if sheet not in xl.sheet_names:
@@ -93,7 +119,10 @@ def _load_from_tier1_sheets(xl) -> dict:
             sub = str(row.get("Sub-sector", "")).strip()
             if not ticker or ticker == "nan":
                 continue
-            mapping[ticker.upper()] = {
+            ticker_upper = ticker.upper()
+            if ticker_upper in mapping:
+                continue  # First occurrence wins
+            mapping[ticker_upper] = {
                 "tier1": tier1,
                 "sub_sector": sub if sub and sub != "nan" else "",
                 "company": company,
