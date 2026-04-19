@@ -262,7 +262,7 @@ def main():
     parser.add_argument("--sector", default=None, help="Filter by Tier 1 sector")
     parser.add_argument("--verify", action="store_true", help="Re-verify existing URLs")
     parser.add_argument("--delay", type=int, default=DEFAULT_DELAY)
-    parser.add_argument("--headless", action="store_true", default=True)
+    parser.add_argument("--headless", action="store_true", default=False)
     parser.add_argument("--no-headless", dest="headless", action="store_false")
     parser.add_argument("--limit", type=int, default=0, help="Max companies (0=all)")
     args = parser.parse_args()

@@ -708,8 +708,8 @@ def main():
         help=f"Delay between companies in seconds (default: {DEFAULT_DELAY})",
     )
     parser.add_argument(
-        "--headless", action="store_true", default=True,
-        help="Run browser in headless mode (default: True)",
+        "--headless", action="store_true", default=False,
+        help="Run browser in headless mode (default: visible window)",
     )
     parser.add_argument(
         "--no-headless", dest="headless", action="store_false",
