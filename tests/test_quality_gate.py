@@ -1,6 +1,7 @@
 """Tests for scripts/quality_gate.py."""
 import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,6 +12,9 @@ from scripts.quality_gate import (
     check_phase2_completeness,
     main,
     PHASE1_REQUIRED_FIELDS,
+    select_judge_model,
+    extract_judge_json,
+    judge_batch,
 )
 
 
@@ -212,3 +216,110 @@ class TestMain:
 
         result = main(phase="all")
         assert result is True
+
+
+# ========================================================
+# LLM-as-Judge
+# ========================================================
+
+class TestSelectJudgeModel:
+    def test_gemini_output_uses_claude_judge(self):
+        model, provider = select_judge_model("gemini-2.5-pro")
+        assert "claude" in model.lower()
+        assert provider == "anthropic"
+
+    def test_claude_output_uses_gemini_judge(self):
+        model, provider = select_judge_model("claude-sonnet-4-6")
+        assert "gemini" in model.lower()
+        assert provider == "gemini"
+
+    def test_env_override(self, monkeypatch):
+        monkeypatch.setenv("JUDGE_MODEL", "claude-haiku-4-5")
+        model, provider = select_judge_model("gemini-2.5-pro")
+        assert model == "claude-haiku-4-5"
+        assert provider == "anthropic"
+
+    def test_env_override_gemini(self, monkeypatch):
+        monkeypatch.setenv("JUDGE_MODEL", "gemini-2.5-flash")
+        model, provider = select_judge_model("claude-sonnet-4-6")
+        assert model == "gemini-2.5-flash"
+        assert provider == "gemini"
+
+    def test_unknown_output_defaults_to_gemini_flash(self):
+        model, provider = select_judge_model("")
+        assert "gemini" in model.lower()
+
+
+class TestExtractJudgeJson:
+    def test_plain(self):
+        text = '{"overall": 7.5, "actionability": 8}'
+        result = extract_judge_json(text)
+        assert result["overall"] == 7.5
+        assert result["actionability"] == 8
+
+    def test_markdown_fenced(self):
+        text = '```json\n{"overall": 6.0}\n```'
+        result = extract_judge_json(text)
+        assert result["overall"] == 6.0
+
+    def test_with_leading_text(self):
+        text = 'Here is the evaluation:\n{"overall": 8.5}'
+        result = extract_judge_json(text)
+        assert result["overall"] == 8.5
+
+    def test_invalid_raises(self):
+        with pytest.raises(ValueError):
+            extract_judge_json("no json here")
+
+
+class TestJudgeBatch:
+    def test_with_mocked_llm(self, project_dir, monkeypatch, sample_phase2_response):
+        monkeypatch.setattr("scripts.quality_gate.PHASE1_DIR",
+                            project_dir / "data" / "phase1")
+        monkeypatch.setattr("scripts.quality_gate.PHASE2_DIR",
+                            project_dir / "data" / "phase2")
+
+        phase2_dir = project_dir / "data" / "phase2"
+        with open(phase2_dir / "1_oncology_review.json", "w", encoding="utf-8") as f:
+            json.dump(sample_phase2_response, f, ensure_ascii=False)
+
+        mock_response = json.dumps({
+            "actionability": 8,
+            "factual_grounding": 7,
+            "korean_quality": 9,
+            "so_what": 7,
+            "overall": 7.75,
+            "strengths": ["Strong numerical grounding"],
+            "weaknesses": ["Short on competitive analysis"],
+            "critical_issues": []
+        })
+
+        with patch("scripts.quality_gate.call_judge", return_value=mock_response):
+            result = judge_batch("1_oncology")
+
+        assert "error" not in result
+        assert result["overall"] == 7.75
+        assert result["actionability"] == 8
+        assert "judge_model" in result
+
+    def test_missing_review_returns_error(self, project_dir, monkeypatch):
+        monkeypatch.setattr("scripts.quality_gate.PHASE2_DIR",
+                            project_dir / "data" / "phase2")
+        result = judge_batch("nonexistent_batch")
+        assert "error" in result
+
+    def test_llm_failure_returns_error(self, project_dir, monkeypatch, sample_phase2_response):
+        monkeypatch.setattr("scripts.quality_gate.PHASE1_DIR",
+                            project_dir / "data" / "phase1")
+        monkeypatch.setattr("scripts.quality_gate.PHASE2_DIR",
+                            project_dir / "data" / "phase2")
+
+        phase2_dir = project_dir / "data" / "phase2"
+        with open(phase2_dir / "1_oncology_review.json", "w", encoding="utf-8") as f:
+            json.dump(sample_phase2_response, f, ensure_ascii=False)
+
+        with patch("scripts.quality_gate.call_judge", side_effect=RuntimeError("API down")):
+            result = judge_batch("1_oncology")
+
+        assert "error" in result
+        assert "API down" in result["error"]
