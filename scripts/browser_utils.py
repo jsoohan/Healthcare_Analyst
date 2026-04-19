@@ -59,8 +59,45 @@ def _build_options(headless=False, download_dir=None, chrome_profile=None,
     return options
 
 
+def _detect_chrome_major_version():
+    """Detect installed Chrome major version on Windows/macOS/Linux."""
+    import re as _re
+    import subprocess
+    candidates = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium",
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                # Windows
+                if path.endswith(".exe"):
+                    out = subprocess.check_output(
+                        ["wmic", "datafile", "where",
+                         f'name="{path.replace(chr(92), chr(92)*2)}"',
+                         "get", "Version", "/value"],
+                        stderr=subprocess.DEVNULL, timeout=5
+                    ).decode(errors="ignore")
+                else:
+                    out = subprocess.check_output(
+                        [path, "--version"], timeout=5
+                    ).decode(errors="ignore")
+                m = _re.search(r"(\d+)\.", out)
+                if m:
+                    return int(m.group(1))
+            except Exception:
+                continue
+    return None
+
+
 def _create_stealth_driver(headless, download_dir, chrome_profile, profile_dir):
-    """Use undetected-chromedriver for anti-detection."""
+    """Use undetected-chromedriver for anti-detection.
+
+    If it fails, prints diagnostic info and re-raises.
+    """
     try:
         import undetected_chromedriver as uc
     except ImportError:
@@ -79,7 +116,37 @@ def _create_stealth_driver(headless, download_dir, chrome_profile, profile_dir):
         options.add_argument(f"--user-data-dir={chrome_profile}")
         options.add_argument(f"--profile-directory={profile_dir}")
 
-    driver = uc.Chrome(options=options, use_subprocess=True)
+    # Try to match Chrome version explicitly (prevents driver/browser mismatch)
+    version_main = _detect_chrome_major_version()
+
+    kwargs = {"options": options}
+    if version_main:
+        kwargs["version_main"] = version_main
+
+    try:
+        driver = uc.Chrome(**kwargs)
+    except Exception as e:
+        msg = str(e)
+        hint = []
+        if "cannot connect to chrome" in msg.lower() or "session not created" in msg.lower():
+            hint = [
+                "\n[TROUBLESHOOT] undetected-chromedriver failed to start Chrome.",
+                "Common causes:",
+                "  1. Chrome is already running with the same profile.",
+                "     -> Close ALL Chrome windows before running this script.",
+                "  2. Chrome version mismatch.",
+                f"     -> Detected major version: {version_main or '(unknown)'}",
+                "     -> Update Chrome, or pip install -U undetected-chromedriver",
+                "  3. Profile path is invalid or read-only.",
+                f"     -> CHROME_PROFILE={chrome_profile}",
+                "     -> Try a dedicated scraping profile (see docs/PIPELINE.md).",
+                "",
+                "Fallback: unset STEALTH_BROWSER and CHROME_PROFILE to use regular Selenium:",
+                "  Remove-Item Env:STEALTH_BROWSER",
+                "  Remove-Item Env:CHROME_PROFILE",
+            ]
+        raise RuntimeError("\n".join([msg] + hint)) from e
+
     if download_dir:
         abs_dir = os.path.abspath(download_dir)
         os.makedirs(abs_dir, exist_ok=True)
