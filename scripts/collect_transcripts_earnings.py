@@ -461,8 +461,15 @@ def already_collected(output_dir, company_name, event_tag,
     return already_collected_flat(output_dir, company_name, event_tag)
 
 
-def load_progress(log_dir):
-    p = os.path.join(log_dir, "progress.csv")
+def _progress_file(log_dir, output_mode="flat"):
+    """Progress file is mode-specific so flat/greenwood runs don't clash."""
+    if output_mode == "greenwood":
+        return os.path.join(log_dir, "progress_greenwood.csv")
+    return os.path.join(log_dir, "progress.csv")
+
+
+def load_progress(log_dir, output_mode="flat"):
+    p = _progress_file(log_dir, output_mode)
     done = set()
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8") as f:
@@ -471,8 +478,8 @@ def load_progress(log_dir):
     return done
 
 
-def append_progress(log_dir, row):
-    p = os.path.join(log_dir, "progress.csv")
+def append_progress(log_dir, row, output_mode="flat"):
+    p = _progress_file(log_dir, output_mode)
     exists = os.path.exists(p)
     fields = ["ticker", "company_name", "sector", "found", "file_size_kb",
               "event_title", "event_date", "url", "note", "collected_at"]
@@ -630,7 +637,7 @@ def main():
         companies = companies[args.start:]
         print(f"  [INIT] Start index: {args.start}")
 
-    done = load_progress(log_dir)
+    done = load_progress(log_dir, output_mode=args.output_mode)
     remaining = [c for c in companies if c["ticker"] not in done]
     print(f"  [INIT] Already done: {len(done)}, remaining: {len(remaining)}")
 
@@ -750,7 +757,7 @@ def main():
                     else:
                         result["note"] = f"error:{err}"
 
-            append_progress(log_dir, result)
+            append_progress(log_dir, result, output_mode=args.output_mode)
             if result["found"] == "Y":
                 summary["found"] += 1
                 print(f"{tag_str} {name:35s} -> Y  "
@@ -775,8 +782,11 @@ def main():
     print(f"  {quarter} {year} Earnings Call Collection Complete")
     print(f"  Collected: {summary['found']}")
     print(f"  Skipped:   {summary['skip']}")
-    print(f"  Output:    {os.path.abspath(output_dir)}")
-    print(f"  Logs:      {os.path.abspath(log_dir)}/progress.csv")
+    if args.output_mode == "greenwood":
+        print(f"  Output:    {os.path.abspath(args.output_root)}\\{greenwood_period}_dir\\...")
+    else:
+        print(f"  Output:    {os.path.abspath(output_dir)}")
+    print(f"  Logs:      {_progress_file(os.path.abspath(log_dir), args.output_mode)}")
     print(f"{'=' * 60}")
 
 
