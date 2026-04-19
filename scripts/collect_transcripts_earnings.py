@@ -77,31 +77,9 @@ VALIDATION_KEYWORDS = [
 # ══════════════════════════════════════════════════════════════
 
 def create_driver(headless=False):
-    options = Options()
-    if headless:
-        options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    driver.set_page_load_timeout(30)
-    driver.set_script_timeout(15)
-    driver.implicitly_wait(5)
-    try:
-        driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
-    except Exception:
-        pass
-    return driver
+    """Create Chrome driver. Respects STEALTH_BROWSER and CHROME_PROFILE env vars."""
+    from scripts.browser_utils import create_driver as _make
+    return _make(headless=headless)
 
 
 def safe_get(driver, url, retries=2):

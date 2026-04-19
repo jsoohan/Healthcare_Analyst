@@ -95,6 +95,50 @@ python scripts/build_ir_url_map.py --no-headless --limit 5
 
 ---
 
+### 캡차 회피 전략 (중요)
+
+Google 검색 + MarketScreener 대량 수집 시 캡차가 자주 발생. 다음 조합으로 90%+ 회피:
+
+**1. Undetected ChromeDriver 사용** — Selenium 감지 로직 우회
+```powershell
+# 설치
+pip install undetected-chromedriver  # requirements.txt에 포함됨
+
+# 실행 시 환경변수로 활성화
+$env:STEALTH_BROWSER = "1"
+python scripts/collect_ir_presentations.py ...
+```
+
+**2. 실제 Chrome 프로필 사용** — 본인의 로그인 쿠키/이력 활용하여 봇처럼 안 보이게
+```powershell
+# 본인 Chrome 프로필 경로 (Windows 기본)
+$env:CHROME_PROFILE = "C:\Users\unjen\AppData\Local\Google\Chrome\User Data"
+$env:CHROME_PROFILE_DIR = "Default"  # 또는 "Profile 1", "Profile 2" 등
+
+# 주의: 스크립트 실행 중에는 일반 Chrome을 열지 말 것 (lock 충돌)
+python scripts/collect_ir_presentations.py ...
+```
+
+**3. 딜레이 증가** — 빠른 연속 요청은 봇으로 판단
+```powershell
+python scripts/collect_ir_presentations.py ... --delay 12
+```
+
+**4. 3가지 조합 (최강)**
+```powershell
+$env:STEALTH_BROWSER = "1"
+$env:CHROME_PROFILE = "C:\Users\unjen\AppData\Local\Google\Chrome\User Data"
+python scripts/collect_ir_presentations.py `
+    --input $DB --quarter Q4 --year 2025 --sector Dentistry `
+    --output-mode greenwood --output-root $ROOT `
+    --delay 10
+```
+
+**5. IR URL 맵 우선 구축** — Google 검색 의존도 최소화
+- `build_ir_url_map.py` 완료 후 `collect_ir_presentations.py`를 실행하면 Step 0(IR URL 직접 접속)로 대부분 처리, Google 거치지 않음.
+
+---
+
 ### 글로벌 전체 수집 워크플로우 (Greenwood 구조로 출력)
 
 HealthcareIntel DB의 ~1130개 기업 전체를 수집할 때는 섹터별로 나눠서 Greenwood 계층 구조로 직접 출력. 각 수집 스크립트는 `--output-mode greenwood --output-root`를 지원.

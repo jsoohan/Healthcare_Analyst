@@ -91,33 +91,10 @@ BLOCKED_DOMAINS = [
 # ============================================================
 
 
-def create_driver(headless=True, download_dir=None):
-    """Create a Chrome WebDriver with download preferences."""
-    options = Options()
-    if headless:
-        options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-
-    # Download preferences
-    prefs = {
-        "download.prompt_for_download": False,
-        "download.directory_upgrade": True,
-        "plugins.always_open_pdf_externally": True,
-    }
-    if download_dir:
-        prefs["download.default_directory"] = os.path.abspath(download_dir)
-    options.add_experimental_option("prefs", prefs)
-
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+def create_driver(headless=False, download_dir=None):
+    """Create Chrome driver. Respects STEALTH_BROWSER and CHROME_PROFILE env vars."""
+    from scripts.browser_utils import create_driver as _make
+    driver = _make(headless=headless, download_dir=download_dir)
     driver.set_page_load_timeout(20)
     driver.implicitly_wait(3)
     return driver
