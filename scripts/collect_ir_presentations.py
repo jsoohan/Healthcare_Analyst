@@ -525,30 +525,55 @@ def resolve_output_for_company(args, company, greenwood_period):
 
 
 def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
-                 final_name=None):
+                 final_name=None, edgar_client=None):
     """Collect IR presentation for one company.
 
-    4-step approach:
-      Step 0: Try ir_url_map direct lookup (NEW)
+    5-step approach:
+      Step 0a: SEC EDGAR 8-K exhibit (US companies, no browser needed)
+      Step 0b: ir_url_map direct lookup
       Step 1: Google search -> direct PDF/PPTX links
       Step 2: Google search -> IR pages -> crawl for links
       Step 3: Broader search fallback
 
     Args:
         final_name: Override computed name (for greenwood mode).
-                    Defaults to "{sanitize(name)}_{Q}_{YYYY}".
+        edgar_client: EdgarClient instance (reused across companies).
 
     Returns (file_path, file_size, method, source_url) or (None, 0, None, None).
     """
     name = company["company_name"]
     ticker = company["ticker"]
+    exchange = company.get("exchange", "")
     search_term = company.get("search_term", ticker)
     q_label = quarter_label(quarter, year)
     if final_name is None:
         final_name = f"{sanitize(name)}_{q_label}"
 
     # ----------------------------------------------------------
-    # Step 0: Try ir_url_map first (NEW)
+    # Step 0a: SEC EDGAR 8-K exhibit (US companies — no browser, no rate limit)
+    # ----------------------------------------------------------
+    us_exchanges = {"NYSE", "NASDAQ", "Nasdaq", "AMEX", "OTC"}
+    if edgar_client and any(ex in exchange for ex in us_exchanges):
+        print(f"  {tag} Step 0a: SEC EDGAR 8-K search...")
+        try:
+            result = edgar_client.find_earnings_presentation(ticker, quarter, year)
+            if result:
+                ext = os.path.splitext(result["filename"])[1].lower() or ".pdf"
+                out_path = os.path.join(output_dir, f"{final_name}{ext}")
+                os.makedirs(output_dir, exist_ok=True)
+                fsize = edgar_client.download(result["url"], out_path)
+                if fsize >= MIN_FILE_SIZE:
+                    return out_path, fsize, "sec_edgar", result["url"]
+                else:
+                    try:
+                        os.remove(out_path)
+                    except OSError:
+                        pass
+        except Exception as e:
+            print(f"  {tag} Step 0a: EDGAR failed: {str(e)[:60]}")
+
+    # ----------------------------------------------------------
+    # Step 0b: Try ir_url_map (direct IR page access)
     # ----------------------------------------------------------
     ir_map = load_ir_url_map()
     if ticker in ir_map and ir_map[ticker].get("ir_url"):
@@ -760,6 +785,16 @@ def main():
     q_label = quarter_label(args.quarter, args.year)
     log_path = os.path.join(log_dir, f"ir_progress_{q_label}.csv")
 
+    # ---- Initialize SEC EDGAR client (no browser needed) ----
+    try:
+        from scripts.sec_edgar import EdgarClient
+        edgar_client = EdgarClient(cache_dir=log_dir)
+        print(f"[INIT] SEC EDGAR client ready "
+              f"({len(edgar_client.get_ticker_map())} US tickers mapped)")
+    except Exception as e:
+        print(f"[WARN] SEC EDGAR unavailable: {e}")
+        edgar_client = None
+
     # ---- Load progress ----
     collected_set = load_progress(log_path)
     print(f"[INIT] Progress log: {log_path} ({len(collected_set)} already collected)")
@@ -819,6 +854,7 @@ def main():
                     driver, company, args.quarter, args.year,
                     temp_dir, per_output_dir, tag=label,
                     final_name=per_final_name,
+                    edgar_client=edgar_client,
                 )
             except Exception as e:
                 print(f"  {label} ERROR: {str(e)[:80]}")
