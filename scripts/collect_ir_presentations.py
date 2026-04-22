@@ -772,6 +772,7 @@ def main():
     success_count = 0
     skip_count = 0
     fail_count = 0
+    consecutive_fails = 0
 
     try:
         for idx, company in enumerate(companies):
@@ -807,39 +808,49 @@ def main():
                 time.sleep(2)
                 driver = create_driver(headless=args.headless, download_dir=temp_dir)
 
-            # Attempt collection with retry
+            # Attempt collection — only retry on actual errors (not "nothing found")
             file_path = None
             file_size = 0
             method = None
             source_url = None
 
-            for attempt in range(MAX_RETRY + 1):
-                if attempt > 0:
-                    print(f"  {label} Retry {attempt}/{MAX_RETRY}...")
-                    time.sleep(args.delay)
-
+            try:
+                file_path, file_size, method, source_url = collect_one(
+                    driver, company, args.quarter, args.year,
+                    temp_dir, per_output_dir, tag=label,
+                    final_name=per_final_name,
+                )
+            except Exception as e:
+                print(f"  {label} ERROR: {str(e)[:80]}")
+                file_path = None
+                # Restart driver on unexpected errors, then retry once
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                time.sleep(3)
+                driver = create_driver(
+                    headless=args.headless, download_dir=temp_dir
+                )
                 try:
                     file_path, file_size, method, source_url = collect_one(
                         driver, company, args.quarter, args.year,
                         temp_dir, per_output_dir, tag=label,
                         final_name=per_final_name,
                     )
-                except Exception as e:
-                    print(f"  {label} ERROR: {str(e)[:80]}")
-                    file_path = None
-                    # Restart driver on unexpected errors
-                    try:
-                        driver.quit()
-                    except Exception:
-                        pass
-                    time.sleep(2)
-                    driver = create_driver(
-                        headless=args.headless, download_dir=temp_dir
-                    )
-                    continue
+                except Exception:
+                    pass
 
-                if file_path:
-                    break
+            # Track consecutive failures for Google rate-limit detection
+            if file_path and file_size >= MIN_FILE_SIZE:
+                consecutive_fails = 0
+            else:
+                consecutive_fails += 1
+                if consecutive_fails >= 5 and consecutive_fails % 5 == 0:
+                    cooldown = min(consecutive_fails * 10, 120)
+                    print(f"\n  [COOLDOWN] {consecutive_fails} consecutive failures "
+                          f"— Google may be rate-limiting. Pausing {cooldown}s...\n")
+                    time.sleep(cooldown)
 
             # Record result
             key = f"{sanitize(name)}_{q_label}"
