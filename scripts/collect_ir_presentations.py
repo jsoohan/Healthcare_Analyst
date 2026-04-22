@@ -556,7 +556,8 @@ def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
     if edgar_client and any(ex in exchange for ex in us_exchanges):
         print(f"  {tag} Step 0a: SEC EDGAR 8-K search...")
         try:
-            result = edgar_client.find_earnings_presentation(ticker, quarter, year)
+            result = edgar_client.find_earnings_presentation(
+                ticker, quarter, year, verbose=True)
             if result:
                 ext = os.path.splitext(result["filename"])[1].lower() or ".pdf"
                 out_path = os.path.join(output_dir, f"{final_name}{ext}")
@@ -570,7 +571,7 @@ def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
                     except OSError:
                         pass
         except Exception as e:
-            print(f"  {tag} Step 0a: EDGAR failed: {str(e)[:60]}")
+            print(f"  {tag} Step 0a: EDGAR failed: {str(e)[:100]}")
 
     # ----------------------------------------------------------
     # Step 0b: Try ir_url_map (direct IR page access)

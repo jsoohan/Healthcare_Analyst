@@ -148,18 +148,13 @@ class EdgarClient:
         return results
 
     def _is_earnings_8k(self, filing, quarter, year):
-        """Check if an 8-K is likely the earnings release for given quarter."""
-        desc = (filing.get("description", "") or "").lower()
+        """Check if an 8-K is likely the earnings release for given quarter.
+
+        8-K descriptions are usually empty or just '8-K' — cannot rely on
+        description to classify. We filter purely by filing date window
+        and let document scoring find the earnings presentation.
+        """
         date_str = filing.get("date", "")
-
-        earnings_kw = ["earnings", "results", "quarter", "financial",
-                        "press release", "exhibit 99"]
-        if not any(kw in desc for kw in earnings_kw):
-            if not desc:
-                pass  # Many 8-Ks have empty descriptions — check by date
-            else:
-                return False
-
         if not date_str:
             return True
 
@@ -169,19 +164,28 @@ class EdgarClient:
             return True
 
         expected_months = QUARTER_MONTHS.get(quarter.upper(), ())
-        report_year = year + 1 if quarter.upper() == "Q4" else year
-        if filing_date.month in expected_months and filing_date.year == report_year:
-            return True
-        if filing_date.month in expected_months and filing_date.year == year:
-            return True
+        if quarter.upper() == "Q4":
+            # Q4 earnings released Jan-Apr of FOLLOWING year (e.g. Q4 2025 -> early 2026)
+            if filing_date.year == year + 1 and filing_date.month in expected_months:
+                return True
+            # Also accept late-year filings (some companies release Q4 in Dec)
+            if filing_date.year == year and filing_date.month in (12, 11):
+                return True
+        else:
+            if filing_date.year == year and filing_date.month in expected_months:
+                return True
 
         return False
 
     def get_filing_documents(self, cik, accession):
-        """Get list of documents in a filing."""
-        cik_padded = str(cik).zfill(10)
+        """Get list of documents in a filing.
+
+        NOTE: Archives URLs use CIK WITHOUT leading zeros (unlike
+        submissions API which needs 10-digit padded CIK).
+        """
+        cik_nopad = str(cik).lstrip("0") or str(cik)
         acc_clean = accession.replace("-", "")
-        url = f"{SEC_BASE}/Archives/edgar/data/{cik_padded}/{acc_clean}/index.json"
+        url = f"{SEC_BASE}/Archives/edgar/data/{cik_nopad}/{acc_clean}/index.json"
 
         resp = self._get(url)
         data = resp.json()
@@ -189,7 +193,7 @@ class EdgarClient:
         docs = []
         directory = data.get("directory", {})
         items = directory.get("item", [])
-        base_url = f"{SEC_BASE}/Archives/edgar/data/{cik_padded}/{acc_clean}/"
+        base_url = f"{SEC_BASE}/Archives/edgar/data/{cik_nopad}/{acc_clean}/"
 
         for item in items:
             name = item.get("name", "")
@@ -209,10 +213,7 @@ class EdgarClient:
         name = doc.get("name", "").lower()
         doc_type = doc.get("type", "").lower()
 
-        if want_presentation:
-            patterns = PRESENTATION_PATTERNS
-        else:
-            patterns = PRESS_RELEASE_PATTERNS
+        patterns = PRESENTATION_PATTERNS if want_presentation else PRESS_RELEASE_PATTERNS
 
         score = 0
 
@@ -220,66 +221,89 @@ class EdgarClient:
         is_pptx = name.endswith(".pptx") or name.endswith(".ppt")
         is_htm = name.endswith(".htm") or name.endswith(".html")
 
+        # Base extension score — any PDF/PPTX from an earnings 8-K is a candidate
         if is_pptx:
-            score += 10
+            score += 8
         elif is_pdf:
-            score += 5
+            score += 4
         elif is_htm:
             score += 1
 
+        # Name pattern bonuses
         for pat in patterns:
             if pat.search(name) or pat.search(doc_type):
                 score += 5
 
         if "presentation" in name:
             score += 8
-        if "slide" in name:
+        if "slide" in name or "slides" in name:
             score += 6
         if "supplement" in name:
             score += 4
+        if "earnings" in name:
+            score += 3
+        if "quarterly" in name or "quarter" in name:
+            score += 2
         if "press" in name and want_presentation:
-            score -= 3
+            score -= 3  # Press release is Step 0c, not presentation
+        if "release" in name and want_presentation:
+            score -= 2
 
+        # Size heuristic (earnings presentations are typically 500KB - 10MB)
         try:
             size = int(doc.get("size", "0"))
-            if is_pdf and size > 500000:
-                score += 3
-            if is_pdf and size > 2000000:
+            if is_pdf and 500_000 <= size <= 20_000_000:
                 score += 2
+            if is_pdf and 2_000_000 <= size <= 10_000_000:
+                score += 2  # Sweet spot for earnings presentations
         except (ValueError, TypeError):
             pass
 
         return score
 
-    def find_earnings_presentation(self, ticker, quarter, year):
+    def find_earnings_presentation(self, ticker, quarter, year, verbose=False):
         """Find Q4 earnings presentation PDF for a US-listed company.
 
         Returns dict with {url, filename, filing_date, accession} or None.
         """
         cik = self.ticker_to_cik(ticker)
         if not cik:
+            if verbose:
+                print(f"    [edgar] {ticker}: CIK not found")
             return None
 
-        filings = self.get_recent_filings(cik, "8-K", max_results=30)
-
+        filings = self.get_recent_filings(cik, "8-K", max_results=40)
         earnings_filings = [f for f in filings
                              if self._is_earnings_8k(f, quarter, year)]
 
+        if verbose:
+            print(f"    [edgar] {ticker}: CIK={cik}, "
+                  f"{len(filings)} recent 8-Ks, "
+                  f"{len(earnings_filings)} in Q{quarter[-1]} window")
+
+        # If no date-matched filings, check first 10 anyway
         if not earnings_filings:
             earnings_filings = filings[:10]
 
-        for filing in earnings_filings[:5]:
+        for filing in earnings_filings[:10]:
             try:
                 docs = self.get_filing_documents(cik, filing["accession"])
-            except Exception:
+            except Exception as e:
+                if verbose:
+                    print(f"    [edgar] Failed to get docs for {filing['accession']}: {e}")
                 continue
 
             scored = [(self._score_document(d, want_presentation=True), d)
                        for d in docs]
             scored.sort(key=lambda x: x[0], reverse=True)
 
+            if verbose and scored:
+                top = scored[0]
+                print(f"    [edgar] {filing['date']} {filing['accession']}: "
+                      f"top doc '{top[1]['name']}' score={top[0]}")
+
             for score, doc in scored:
-                if score < 5:
+                if score < 3:
                     continue
                 name = doc["name"].lower()
                 if name.endswith((".pdf", ".pptx", ".ppt")):
