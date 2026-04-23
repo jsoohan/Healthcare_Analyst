@@ -120,26 +120,43 @@ def is_blocked_domain(url):
 
 
 def domain_relevance(url, company_name, ticker):
-    """Score how relevant a URL domain is to the company (0-3)."""
+    """Score how relevant a URL domain is to the company (0-10).
+
+    Ported from user's original working script. Recognizes IR hosting CDNs
+    (q4cdn, cloudfront), filing systems (sec.gov, dart.fss, hkexnews),
+    and filters out known irrelevant domains (pension funds, ETFs).
+    """
     try:
         domain = urlparse(url).netloc.lower()
+        path = urlparse(url).path.lower()
     except Exception:
         return 0
 
+    full = domain + path
+    name_parts = re.sub(r'[^a-zA-Z0-9\s]', '', company_name).lower().split()
     score = 0
 
-    # Check ticker in domain
-    if ticker and ticker.lower() in domain:
-        score += 2
+    if name_parts and name_parts[0] in domain:
+        score += 6
+    if ticker and ticker.lower() in full:
+        score += 5
+    if any(p in domain for p in ["investor", "ir.", "q4cdn", "sec.gov",
+                                  "hkexnews", "cninfo", "sse.com",
+                                  "szse.cn", "tdnet", "edinet"]):
+        score += 4
+    if any(p in domain for p in ["dart.fss", "edgar", "sedar"]):
+        score += 4
+    if any(p in domain for p in ["q4cdn", "s3.amazonaws", "cloudfront",
+                                  "bfrqr.com", "notified.com"]):
+        score += 3
+    if any(p in domain for p in ["swissfund", "hesta.", "mbs.com", "wisesheets",
+                                  "funddata", "pension", "voting", "indexfunds",
+                                  "etf.", "mutualfund", "fund.", "assetmanag"]):
+        return 0
 
-    # Check company name fragments in domain
-    name_clean = re.sub(r'[^a-zA-Z0-9]', '', company_name).lower()
-    if len(name_clean) >= 4 and name_clean[:4] in domain:
-        score += 1
-    if len(name_clean) >= 6 and name_clean[:6] in domain:
-        score += 1
-
-    return min(score, 3)
+    if score == 0:
+        return 0
+    return score
 
 
 def extract_google_url(href):
