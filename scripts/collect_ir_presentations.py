@@ -159,13 +159,19 @@ def domain_relevance(url, company_name, ticker):
     return score
 
 
-def extract_google_url(href):
-    """Extract actual URL from a Google search result href."""
+def extract_search_url(href):
+    """Extract actual URL from search result (Google redirect or direct Bing link)."""
     if "/url?q=" in href:
         m = re.search(r'/url\?q=([^&]+)', href)
         if m:
             return unquote(m.group(1))
-    return href if href.startswith("http") else None
+    if href.startswith("http") and "google." not in href and "bing." not in href:
+        return href
+    return None
+
+
+# Backward compat alias
+extract_google_url = extract_search_url
 
 
 def is_pdf_or_pptx(url):
@@ -312,7 +318,7 @@ def google_search_candidates(driver, company_name, quarter, year):
     seen_urls = set()
 
     for query in queries:
-        search_url = f"https://www.google.com/search?q={url_quote(query)}&num=15"
+        search_url = f"https://www.bing.com/search?q={url_quote(query)}&count=20"
         try:
             driver.get(search_url)
             time.sleep(3)
@@ -613,13 +619,13 @@ def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
     # ----------------------------------------------------------
     # Step 1: Google search for direct PDF/PPTX links
     # ----------------------------------------------------------
-    print(f"  {tag} Step 1: Google search (direct files)...")
+    print(f"  {tag} Step 1: Bing search (direct files)...")
     try:
         direct_pdfs, ir_pages = google_search_candidates(
             driver, search_term, quarter, year
         )
     except Exception as e:
-        print(f"  {tag} Step 1: Google search failed: {str(e)[:60]}")
+        print(f"  {tag} Step 1: Bing search failed: {str(e)[:60]}")
         direct_pdfs, ir_pages = [], []
 
     for link in direct_pdfs[:5]:
@@ -628,7 +634,7 @@ def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
             driver, link["url"], temp_dir, output_dir, final_name
         )
         if result and result[1] >= MIN_FILE_SIZE:
-            return result[0], result[1], "google_direct", link["url"]
+            return result[0], result[1], "bing_direct", link["url"]
 
     # ----------------------------------------------------------
     # Step 2: Crawl IR pages found via Google
@@ -650,16 +656,16 @@ def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
                     return result[0], result[1], "ir_page_crawl", link["url"]
 
     # ----------------------------------------------------------
-    # Step 3: Broader fallback search
+    # Step 3: Bing fallback search
     # ----------------------------------------------------------
-    print(f"  {tag} Step 3: Broader fallback search...")
+    print(f"  {tag} Step 3: Bing fallback search...")
     fallback_queries = [
         f'{name} {ticker} quarterly presentation {year} filetype:pdf',
         f'{name} earnings slides {quarter} {year}',
     ]
 
     for query in fallback_queries:
-        search_url = f"https://www.google.com/search?q={url_quote(query)}&num=10"
+        search_url = f"https://www.bing.com/search?q={url_quote(query)}&count=15"
         try:
             driver.get(search_url)
             time.sleep(3)
@@ -690,7 +696,7 @@ def collect_one(driver, company, quarter, year, temp_dir, output_dir, tag="",
                 driver, raw, temp_dir, output_dir, final_name
             )
             if result and result[1] >= MIN_FILE_SIZE:
-                return result[0], result[1], "google_fallback", raw
+                return result[0], result[1], "bing_fallback", raw
 
     return None, 0, None, None
 
