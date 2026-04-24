@@ -160,13 +160,38 @@ def domain_relevance(url, company_name, ticker):
 
 
 def extract_search_url(href):
-    """Extract actual URL from search result (Google redirect or direct Bing link)."""
+    """Extract actual URL from search engine result link.
+
+    Google: /url?q=https%3A//actual.com/file.pdf&...
+    Bing:   /ck/a?...&u=a1aHR0cHM6Ly9hY3R1YWwuY29t...&...  (base64 in u= param)
+    Direct: https://actual.com/file.pdf
+    """
+    import base64 as _b64
+
+    # Google redirect
     if "/url?q=" in href:
         m = re.search(r'/url\?q=([^&]+)', href)
         if m:
             return unquote(m.group(1))
-    if href.startswith("http") and "google." not in href and "bing." not in href:
-        return href
+
+    # Bing tracking redirect (u=a1 + base64-encoded URL)
+    if "bing.com" in href and "u=a1" in href:
+        m = re.search(r'u=a1([A-Za-z0-9_\-]+)', href)
+        if m:
+            try:
+                padded = m.group(1) + "==="
+                decoded = _b64.urlsafe_b64decode(padded).decode("utf-8", errors="ignore")
+                if decoded.startswith("http"):
+                    return decoded
+            except Exception:
+                pass
+
+    # Direct link (not a search engine domain)
+    if href.startswith("http"):
+        domain = urlparse(href).netloc.lower()
+        if "google." not in domain and "bing." not in domain and "yahoo." not in domain:
+            return href
+
     return None
 
 
