@@ -188,19 +188,64 @@ def _create_regular_driver(headless, download_dir, chrome_profile, profile_dir):
     return driver
 
 
-def create_driver(headless=False, download_dir=None, stealth=None,
-                   chrome_profile=None, profile_dir=None):
-    """Create a Chrome driver with optional anti-detection.
+def _create_edge_driver(headless, download_dir, chrome_profile, profile_dir):
+    """Microsoft Edge driver (Chromium-based). Best paired with Bing search."""
+    from selenium.webdriver.edge.service import Service as EdgeService
+    from selenium.webdriver.edge.options import Options as EdgeOptions
 
-    If stealth mode fails (UC crash, version mismatch, port conflict),
-    automatically falls back to regular Selenium so collection continues.
+    options = EdgeOptions()
+    if headless:
+        options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    if chrome_profile:
+        options.add_argument(f"--user-data-dir={chrome_profile}")
+        options.add_argument(f"--profile-directory={profile_dir}")
+    if download_dir:
+        abs_dir = os.path.abspath(download_dir)
+        os.makedirs(abs_dir, exist_ok=True)
+        options.add_experimental_option("prefs", {
+            "download.default_directory": abs_dir,
+            "download.prompt_for_download": False,
+            "download.directory_upgrade": True,
+            "plugins.always_open_pdf_externally": True,
+        })
+
+    try:
+        from webdriver_manager.microsoft import EdgeChromiumDriverManager
+        service = EdgeService(EdgeChromiumDriverManager().install())
+    except Exception:
+        service = EdgeService()
+
+    driver = webdriver.Edge(service=service, options=options)
+    driver.set_page_load_timeout(30)
+    driver.set_script_timeout(15)
+    driver.implicitly_wait(5)
+    return driver
+
+
+def create_driver(headless=False, download_dir=None, stealth=None,
+                   chrome_profile=None, profile_dir=None, browser=None):
+    """Create a browser driver with optional anti-detection.
+
+    Args:
+        browser: "chrome" (default), "edge", or env var BROWSER.
+                 Edge + Bing = Microsoft stack = virtually no captcha.
     """
+    if browser is None:
+        browser = os.getenv("BROWSER", "chrome").lower()
     if stealth is None:
         stealth = os.getenv("STEALTH_BROWSER", "").lower() in ("1", "true", "yes")
     if chrome_profile is None:
         chrome_profile = os.getenv("CHROME_PROFILE") or None
     if profile_dir is None:
         profile_dir = os.getenv("CHROME_PROFILE_DIR", "Default")
+
+    if browser == "edge":
+        return _create_edge_driver(headless, download_dir,
+                                     chrome_profile, profile_dir)
 
     if stealth:
         try:
