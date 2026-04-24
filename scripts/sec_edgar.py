@@ -281,7 +281,6 @@ class EdgarClient:
                   f"{len(filings)} recent 8-Ks, "
                   f"{len(earnings_filings)} in Q{quarter[-1]} window")
 
-        # If no date-matched filings, check first 10 anyway
         if not earnings_filings:
             earnings_filings = filings[:10]
 
@@ -290,21 +289,24 @@ class EdgarClient:
                 docs = self.get_filing_documents(cik, filing["accession"])
             except Exception as e:
                 if verbose:
-                    print(f"    [edgar] Failed to get docs for {filing['accession']}: {e}")
+                    print(f"    [edgar] Failed to get docs for "
+                          f"{filing['accession']}: {e}")
                 continue
 
             scored = [(self._score_document(d, want_presentation=True), d)
                        for d in docs]
             scored.sort(key=lambda x: x[0], reverse=True)
 
-            if verbose and scored:
-                top = scored[0]
-                print(f"    [edgar] {filing['date']} {filing['accession']}: "
-                      f"top doc '{top[1]['name']}' score={top[0]}")
+            if verbose:
+                print(f"    [edgar] {filing['date']} {filing['accession']}:")
+                for s, d in scored[:8]:
+                    if s > 0:
+                        print(f"      {s:3d}  {d['name']:50s}  {d.get('size','')}")
 
+            # Pass 1: PDF/PPTX with good score
             for score, doc in scored:
                 if score < 3:
-                    continue
+                    break
                 name = doc["name"].lower()
                 if name.endswith((".pdf", ".pptx", ".ppt")):
                     return {
@@ -314,6 +316,34 @@ class EdgarClient:
                         "accession": filing["accession"],
                         "score": score,
                     }
+
+            # Pass 2: ANY PDF in this filing (likely presentation even if
+            # filename doesn't match patterns — it's an earnings 8-K)
+            for score, doc in scored:
+                name = doc["name"].lower()
+                if name.endswith((".pdf", ".pptx", ".ppt")) and score > 0:
+                    return {
+                        "url": doc["url"],
+                        "filename": doc["name"],
+                        "filing_date": filing["date"],
+                        "accession": filing["accession"],
+                        "score": score,
+                    }
+
+            # Pass 3: HTML presentation (some companies only file HTML)
+            for score, doc in scored:
+                if score < 5:
+                    break
+                name = doc["name"].lower()
+                if name.endswith((".htm", ".html")):
+                    if "presentation" in name or "slide" in name or "supplement" in name:
+                        return {
+                            "url": doc["url"],
+                            "filename": doc["name"],
+                            "filing_date": filing["date"],
+                            "accession": filing["accession"],
+                            "score": score,
+                        }
 
         return None
 
