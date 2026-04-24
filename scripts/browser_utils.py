@@ -190,6 +190,7 @@ def _create_regular_driver(headless, download_dir, chrome_profile, profile_dir):
 
 def _create_edge_driver(headless, download_dir, chrome_profile, profile_dir):
     """Microsoft Edge driver (Chromium-based). Best paired with Bing search."""
+    from selenium import webdriver as _wd
     from selenium.webdriver.edge.service import Service as EdgeService
     from selenium.webdriver.edge.options import Options as EdgeOptions
 
@@ -219,7 +220,7 @@ def _create_edge_driver(headless, download_dir, chrome_profile, profile_dir):
     except Exception:
         service = EdgeService()
 
-    driver = webdriver.Edge(service=service, options=options)
+    driver = _wd.Edge(service=service, options=options)
     driver.set_page_load_timeout(30)
     driver.set_script_timeout(15)
     driver.implicitly_wait(5)
