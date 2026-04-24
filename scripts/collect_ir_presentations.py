@@ -789,6 +789,16 @@ def main():
         "--output-root", default=None,
         help="Root for greenwood mode (e.g. C:/Greenwood/Research/Earnings)",
     )
+    parser.add_argument(
+        "--rotate-profiles", default=None,
+        help="Comma-separated Chrome profile paths to rotate every N companies. "
+             "Distributes Google queries across profiles to avoid captcha. "
+             "Example: C:/prof1,C:/prof2,C:/prof3",
+    )
+    parser.add_argument(
+        "--rotate-every", type=int, default=20,
+        help="Rotate profile every N companies (default: 20)",
+    )
     args = parser.parse_args()
 
     if args.output_mode == "greenwood" and not args.output_root:
@@ -848,8 +858,29 @@ def main():
     collected_set = load_progress(log_path)
     print(f"[INIT] Progress log: {log_path} ({len(collected_set)} already collected)")
 
-    # ---- Create driver ----
-    driver = create_driver(headless=args.headless, download_dir=temp_dir)
+    # ---- Profile rotation setup ----
+    profiles = None
+    if args.rotate_profiles:
+        profiles = [p.strip() for p in args.rotate_profiles.split(",") if p.strip()]
+        print(f"[INIT] Profile rotation: {len(profiles)} profiles, "
+              f"rotate every {args.rotate_every} companies")
+        for i, p in enumerate(profiles):
+            print(f"  Profile {i}: {p}")
+
+    def _make_driver(profile_override=None):
+        import os as _os
+        if profile_override:
+            _os.environ["CHROME_PROFILE"] = profile_override
+            _os.environ["CHROME_PROFILE_DIR"] = "Default"
+        return create_driver(headless=args.headless, download_dir=temp_dir)
+
+    # ---- Create initial driver ----
+    current_profile_idx = 0
+    if profiles:
+        driver = _make_driver(profiles[0])
+        print(f"[PROFILE] Starting with profile 0: {profiles[0]}")
+    else:
+        driver = create_driver(headless=args.headless, download_dir=temp_dir)
 
     # ---- Collection loop ----
     total = len(companies)
@@ -857,6 +888,7 @@ def main():
     skip_count = 0
     fail_count = 0
     consecutive_fails = 0
+    companies_since_rotation = 0
 
     try:
         for idx, company in enumerate(companies):
@@ -882,15 +914,30 @@ def main():
             per_output_dir, per_final_name = resolve_output_for_company(
                 args, company, greenwood_period)
 
-            # Periodic browser restart to avoid memory leaks
-            if idx > 0 and idx % RESTART_EVERY == 0:
-                print(f"\n[RESTART] Browser restart at index {idx}...")
+            # Periodic browser restart — with profile rotation if configured
+            companies_since_rotation += 1
+            rotate_interval = args.rotate_every if profiles else RESTART_EVERY
+
+            if idx > 0 and companies_since_rotation >= rotate_interval:
+                companies_since_rotation = 0
                 try:
                     driver.quit()
                 except Exception:
                     pass
-                time.sleep(2)
-                driver = create_driver(headless=args.headless, download_dir=temp_dir)
+
+                if profiles:
+                    current_profile_idx = (current_profile_idx + 1) % len(profiles)
+                    profile = profiles[current_profile_idx]
+                    print(f"\n[ROTATE] Switching to profile {current_profile_idx}: "
+                          f"{profile}")
+                    time.sleep(5)
+                    driver = _make_driver(profile)
+                    consecutive_fails = 0
+                else:
+                    print(f"\n[RESTART] Browser restart at index {idx}...")
+                    time.sleep(2)
+                    driver = create_driver(headless=args.headless,
+                                            download_dir=temp_dir)
 
             # Attempt collection — only retry on actual errors (not "nothing found")
             file_path = None
