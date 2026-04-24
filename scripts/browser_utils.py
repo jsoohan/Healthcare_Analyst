@@ -201,6 +201,13 @@ def _create_edge_driver(headless, download_dir, chrome_profile, profile_dir):
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 "
+        "Edg/120.0.0.0"
+    )
     if chrome_profile:
         options.add_argument(f"--user-data-dir={chrome_profile}")
         options.add_argument(f"--profile-directory={profile_dir}")
@@ -224,6 +231,12 @@ def _create_edge_driver(headless, download_dir, chrome_profile, profile_dir):
     driver.set_page_load_timeout(30)
     driver.set_script_timeout(15)
     driver.implicitly_wait(5)
+    try:
+        driver.execute_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
+    except Exception:
+        pass
     return driver
 
 
